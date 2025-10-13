@@ -1,16 +1,42 @@
 import './App.css';
 import {useState} from 'react';
+import ApiService from './api';
 
-function App() {
+const InventoryMananager = () => {
+  const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  return (
-    <LoginForm />
-  );
-}
+  const login = async (username, password) => {
+      try {
+        setLoading(true);
+        setError('');
+        const response = await ApiService.login(username, password);
+        setCurrentUser(response.user);
+        //await loadInitialData();
+        return true;
+      } catch (error) {
+        console.error('Login failed:', error);
+        setError(error.message);
+        return false;
+      } finally {
+        setLoading(false);
+      }
+    };
 
-const LoginForm = () => {
+  const LoginForm = () => {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+
+      const handleLogin = async () => {
+        await login(username, password);
+      };
+
+      const handleKeyPress = (e) => {
+        if (e.key === 'Enter') {
+          handleLogin();
+        }
+      };
     return (
       <div className="min-h-screen bg-gradient-to-br from-gsu-blue via-gsu-cool-blue to-gsu-vibrant-blue flex items-center justify-center p-4">
         <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -37,18 +63,18 @@ const LoginForm = () => {
           </div>
 
           {/* Login Form */}
-          <div className="p-8" onKeyPress={{/*handleKeyPress*/}}>
+          <div className="p-8" onKeyPress={handleKeyPress}>
             <div className="mb-6">
               <label className="block text-gsu-blue text-sm font-bold mb-2 font-primary">
                 Username
               </label>
               <input
                 type="text"
-                value={{/*username*/}}
-                /*onChange={(e) => setUsername(e.target.value)}*/
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-gsu-blue focus:ring-2 focus:ring-gsu-blue focus:ring-opacity-20 transition-all duration-200 font-primary"
                 placeholder="Enter your username"
-                disabled={{/*loading*/}}
+                disabled={loading}
                 required
               />
             </div>
@@ -59,34 +85,34 @@ const LoginForm = () => {
               </label>
               <input
                 type="password"
-                value={{/*password*/}}
-                /*onChange={(e) => setPassword(e.target.value)}*/
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-gsu-blue focus:ring-2 focus:ring-gsu-blue focus:ring-opacity-20 transition-all duration-200 font-primary"
                 placeholder="Enter your password"
-                disabled={{/*loading*/}}
+                disabled={loading}
                 required
               />
             </div>
 
-            {/*error && (
+            {error && (
               <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 rounded">
                 <p className="text-red-600 text-sm font-primary">{error}</p>
               </div>
-            )*/}
+            )}
 
             <button
-              onClick={{/*handleLogin*/}}
-              disabled={{/*loading*/}}
+              onClick={handleLogin}
+              disabled={loading}
               className="w-full bg-gradient-to-r from-gsu-blue to-gsu-cool-blue text-white py-3 px-4 rounded-lg hover:from-gsu-cool-blue hover:to-gsu-vibrant-blue transform hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:transform-none font-primary font-semibold text-lg shadow-lg"
             >
-              {/*loading ? (
+              {loading ? (
                 <span className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                   Logging in...
                 </span>
               ) : (
                 'Login'
-              )*/}
+              )}
             </button>
           </div>
 
@@ -114,4 +140,12 @@ const LoginForm = () => {
       </div>
     );
   };
-export default App;
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'login':
+        return <LoginForm />;
+    }
+  };
+  return renderContent();
+}
+export default InventoryMananager;
