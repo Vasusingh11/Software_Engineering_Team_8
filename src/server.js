@@ -12,8 +12,13 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
 
+// Add error handling for uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
 // Database connection
-const dbPath = path.join(__dirname, 'loaner_database.sqlite');
+const dbPath = path.join(__dirname, '..', 'loaner_database.sqlite');
 console.log(`📍 Database location: ${dbPath}`);
 
 const db = new sqlite3.Database(dbPath, (err) => {
@@ -26,8 +31,39 @@ const db = new sqlite3.Database(dbPath, (err) => {
   }
 });
 
+// Check if the users table exists; if not, run the init script
+const ensureDatabaseInitialized = () => {
+  db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='users'", (err, row) => {
+    if (err) {
+      console.error('Error checking database schema:', err);
+      return;
+    }
+    if (!row) {
+      console.log('Users table missing — running database initializer.');
+      try {
+        require('./initDatabase');
+        console.log('Database initializer executed.');
+      } catch (e) {
+        console.error('Failed to run initDatabase.js:', e);
+      }
+    } else {
+      console.log('Database schema OK.');
+    }
+  });
+};
+
+// Run the check after a small delay to ensure DB connection is ready
+setTimeout(ensureDatabaseInitialized, 200);
+
 // Middleware
-app.use(cors());
+const corsOptions = {
+  origin: 'http://localhost:3000',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Multer setup for file uploads
@@ -36,7 +72,14 @@ const upload = multer({ dest: 'uploads/' });
 // Request logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  console.log('Request Headers:', req.headers);
+  console.log('Request Body:', req.body);
   next();
+});
+
+// Root route for testing
+app.get('/', (req, res) => {
+  res.json({ message: 'Server is running' });
 });
 
 // Auth middleware
@@ -58,11 +101,31 @@ const authenticateToken = (req, res, next) => {
 };
 
 // Login
+// Helper function to run SQL queries
+const getQuery = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) {
+        console.error('Database error:', err);
+        reject(err);
+      } else {
+        resolve(row);
+      }
+    });
+  });
+};
+
 app.post('/api/auth/login', async (req, res) => {
   try {
+    console.log('Login attempt received:', { 
+      headers: req.headers,
+      body: req.body 
+    });
+    
     const { username, password } = req.body;
     
     if (!username || !password) {
+      console.log('Login failed: Missing username or password');
       return res.status(400).json({ error: 'Username and password required' });
     }
     
@@ -97,4 +160,10 @@ app.post('/api/auth/login', async (req, res) => {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`🚀 Server is running on http://localhost:${PORT}`);
+  console.log(`👉 API endpoint available at http://localhost:${PORT}/api`);
 });
