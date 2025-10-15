@@ -1,4 +1,25 @@
-# Getting Started with Create React App
+# Loaner Laptop Management System
+-----------------------------------------------------------------------------
+
+The **Loaner Laptop Management System** is a web-based application designed to streamline the process of loaning, tracking, and managing equipment within Georgia State University. Some of the things this system allows admins to do is approve or deny loan requests, track overdue items, and maintain an updated inventory of available devices.
+
+-----------------------------------------------------------------------------
+Features
+ - User Login and Authentication
+ - Database Integration for Tracking Users and Laptop Loans
+ - Admin Dashboard for Approving/Denying Loan Requests
+ - Loaner View for Checking Loan Status, Available Items, and History
+ - Overdue Item Notifications
+ - Responsive and Modern UI using **React** and **Tailwind CSS**
+   
+-----------------------------------------------------------------------------
+Tech Stack
+ - **Frontend:** React, Tailwind CSS
+ - **Backend:** Node.js, Express.js
+ - **Database:** MySQL
+ - **Version Control:** Git & GitHub
+
+-----------------------------------------------------------------------------
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
