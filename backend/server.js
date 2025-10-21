@@ -1640,10 +1640,15 @@ process.on('SIGINT', () => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`\n🚀 GSU Loaner API Server Started`);
-  console.log(`📍 Server: http://localhost:${PORT}`);
-  console.log(`🔍 Health Check: http://localhost:${PORT}/api/health`);
-  console.log(`💾 Database: ${dbPath}`);
-  console.log(`🕒 Started at: ${new Date().toISOString()}\n`);
-});
+// Export the app for testing. Start the listener only when run directly.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n🚀 GSU Loaner API Server Started`);
+    console.log(`📍 Server: http://localhost:${PORT}`);
+    console.log(`🔍 Health Check: http://localhost:${PORT}/api/health`);
+    console.log(`💾 Database: ${dbPath}`);
+    console.log(`🕒 Started at: ${new Date().toISOString()}\n`);
+  });
+}
+
+module.exports = { app, db };
