@@ -1363,7 +1363,7 @@ const InventoryManager = () => {
             {/* Logo Section */}
             <div className="flex items-center space-x-3">
               <img 
-                src="/gsu-logo.png" 
+                src="public/gsu-logo.jpg" 
                 alt="Georgia State University" 
                 className="h-10 sm:h-14 w-auto"
                 onError={(e) => {

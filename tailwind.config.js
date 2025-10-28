@@ -8,6 +8,7 @@ module.exports = {
       colors: {
         'gsu': {
           'blue': '#0039A6',
+          'red': '#CC0000',
           'cool-blue': '#0071CE',
           'vibrant-blue': '#00AEEF',
           'light-blue': '#97CAEB',
