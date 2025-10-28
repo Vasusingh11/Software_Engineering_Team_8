@@ -157,10 +157,10 @@ const InventoryManager = () => {
               }}
             />
             <h2 className="text-2xl font-bold font-secondary tracking-tight text-white" style={{display: 'none'}}>
-              EQUIPMENT PORTAL
+              GEORGIA STATE UNIVERSITY
             </h2>
             <h1 className="text-white text-xl font-bold font-secondary tracking-wide">
-              EQUIPMENT PORTAL
+              LOANER EQUIPMENT PORTAL
             </h1>
             <p className="text-gsu-light-blue font-primary text-sm mt-1">
               J. Mack Robinson College of Business
