@@ -18,7 +18,9 @@ const InventoryManager = () => {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnLoanData, setReturnLoanData] = useState(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
+  const [categories, setCategories] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [maintenanceRecords, setMaintenanceRecords] = useState([]);
   
   const Modal = ({ isOpen, onClose, title, children }) => {
     if (!isOpen) return null;
@@ -56,7 +58,7 @@ const InventoryManager = () => {
       </div>
     );
   };
-
+  
   const loadItems = useCallback(async () => {
     try {
       const data = await ApiService.getItems();
@@ -75,6 +77,80 @@ const InventoryManager = () => {
     } catch (error) {
       console.error('Failed to load available items:', error);
       setError('Failed to load available items: ' + error.message);
+    }
+  }, []);
+
+  const loadLoans = useCallback(async () => {
+    try {
+      const data = await ApiService.getLoans();
+      setLoans(data);
+    } catch (error) {
+      console.error('Failed to load loans:', error);
+      setError('Failed to load loans: ' + error.message);
+    }
+  }, []);
+
+  const loadCategories = useCallback(async () => {
+    try {
+      const data = await ApiService.getCategories();
+      setCategories(data);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  }, []);
+
+  const loadLocations = useCallback(async () => {
+    try {
+      const data = await ApiService.getLocations();
+      setLocations(data);
+    } catch (error) {
+      console.error('Failed to load locations:', error);
+    }
+  }, []);
+
+  const loadMaintenanceRecords = useCallback(async () => {
+    try {
+      // For now, using mock data - in real implementation this would call API
+      const mockRecords = [
+        {
+          id: 1,
+          item_id: 1,
+          asset_id: 'GSU-LAP-001',
+          issue_description: 'Screen flickering intermittently',
+          maintenance_date: '2024-01-15',
+          technician_name: 'John Smith',
+          cost: 150.00,
+          status: 'completed',
+          resolution_notes: 'Replaced LCD cable and updated drivers',
+          parts_used: 'LCD cable, driver software'
+        },
+        {
+          id: 2,
+          item_id: 3,
+          asset_id: 'GSU-TAB-003',
+          issue_description: 'Battery not holding charge',
+          maintenance_date: '2024-01-20',
+          technician_name: 'Sarah Johnson',
+          cost: 75.00,
+          status: 'in_progress',
+          resolution_notes: 'Battery replacement in progress',
+          parts_used: 'New battery ordered'
+        }
+      ];
+      setMaintenanceRecords(mockRecords);
+    } catch (error) {
+      console.error('Failed to load maintenance records:', error);
+      setError('Failed to load maintenance records: ' + error.message);
+    }
+  }, []);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      const data = await ApiService.getUsers();
+      setUsers(data);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+      setError('Failed to load users: ' + error.message);
     }
   }, []);
 
@@ -239,6 +315,35 @@ const InventoryManager = () => {
       </div>
     </div>
   );
+  const loadInitialData = useCallback(async () => {
+    try {
+      setLoading(true);
+      await Promise.all([
+        loadItems(),
+        loadLoans(),
+        loadDashboardStats(),
+        loadCategories(),
+        loadLocations(),
+        loadMaintenanceRecords()
+      ]);
+      
+      const user = await ApiService.getUserProfile();
+      // Load users for both admin and staff (staff need users for loaner applications)
+      if (user.role === 'admin' || user.role === 'staff') {
+        await loadUsers();
+      }
+
+      if (user.role === 'admin' || user.role === 'staff') {
+        await loadAvailableItems();
+      }
+    } catch (error) {
+      console.error('Failed to load initial data:', error);
+      setError('Failed to load data: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadItems, loadLoans, loadDashboardStats, loadCategories, loadLocations, loadMaintenanceRecords, loadUsers, loadAvailableItems]);
+
   const updateItem = async (id, updatedItem) => {
     try {
       setLoading(true);
@@ -313,16 +418,6 @@ const InventoryManager = () => {
       </div>
     </div>
   );
-
-  const loadLoans = useCallback(async () => {
-    try {
-      const data = await ApiService.getLoans();
-      setLoans(data);
-    } catch (error) {
-      console.error('Failed to load loans:', error);
-      setError('Failed to load loans: ' + error.message);
-    }
-  }, []);
 
   const approveLoan = async (loanId) => {
     try {
@@ -440,7 +535,7 @@ const InventoryManager = () => {
         setError('');
         const response = await ApiService.login(username, password);
         setCurrentUser(response.user);
-        //await loadInitialData();
+        await loadInitialData();
         return true;
       } catch (error) {
         console.error('Login failed:', error);
@@ -1071,7 +1166,6 @@ const InventoryManager = () => {
   const InventoryManager = () => {
     return (<div>Return Confirmation Modal</div>);
   }
-  //dashboard
   // Dashboard Component
   const Dashboard = () => {
     const {
