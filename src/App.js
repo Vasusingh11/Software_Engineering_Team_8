@@ -1,10 +1,14 @@
 import './App.css';
-import {useState} from 'react';
+import {useState, useCallback} from 'react';
+import {Menu, Edit, CheckCircle, Clock, AlertTriangle, Wrench, X, Settings, Search, FileText, Laptop, User,} from 'lucide-react';
 import ApiService from './api';
 
 const InventoryManager = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [items, setItems] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [availableItems, setAvailableItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dashboardStats, setDashboardStats] = useState({});
@@ -13,6 +17,77 @@ const InventoryManager = () => {
   const [modalContent, setModalContent] = useState(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnLoanData, setReturnLoanData] = useState(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  
+  const Modal = ({ isOpen, onClose, title, children }) => {
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+          {/* Background overlay */}
+          <div 
+            className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+            onClick={onClose}
+          ></div>
+
+          {/* Modal panel */}
+          <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  {title}
+                </h3>
+                <button 
+                  onClick={onClose}
+                  className="bg-white rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gsu-blue"
+                >
+                  <span className="sr-only">Close</span>
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="max-h-96 overflow-y-auto">
+                {children}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const loadItems = useCallback(async () => {
+    try {
+      const data = await ApiService.getItems();
+      setItems(data);
+    } catch (error) {
+      console.error('Failed to load items:', error);
+      setError('Failed to load items: ' + error.message);
+    }
+  }, []);
+
+  const loadAvailableItems = useCallback(async () => {
+    try {
+      const data = await ApiService.getItems();
+      const available = data.filter(item => item.status === 'available');
+      setAvailableItems(available);
+    } catch (error) {
+      console.error('Failed to load available items:', error);
+      setError('Failed to load available items: ' + error.message);
+    }
+  }, []);
+
+  const loadDashboardStats = useCallback(async () => {
+    try {
+      const data = await ApiService.getDashboardStats();
+      setDashboardStats(data);
+    } catch (error) {
+      console.error('Failed to load dashboard stats:', error);
+      setError('Failed to load dashboard stats: ' + error.message);
+    }
+  }, []);
+
     // Modal functionality with better loading states
   const showStatsModal = async (type) => {
     // Show loading immediately for async operations
@@ -109,6 +184,253 @@ const InventoryManager = () => {
         </div>
       );
       setShowModal(true);
+    }
+  };
+  const logout = () => {
+    ApiService.logout();
+    setCurrentUser(null);
+    setItems([]);
+    setAvailableItems([]);
+    setLoans([]);
+    setUsers([]);
+    setDashboardStats({});
+    setActiveTab('dashboard');
+    setError('');
+  };
+  const ItemsModal = ({ items, title }) => (
+    <div>
+      <div className="mb-4">
+        <p className="text-gray-600">Total: {items.length} items</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-gray-200">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="border border-gray-200 px-4 py-2 text-left">Asset ID</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">RCB Sticker</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Type</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Brand/Model</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Status</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Location</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(item => (
+              <tr key={item.id}>
+                <td className="border border-gray-200 px-4 py-2 font-medium">{item.asset_id}</td>
+                <td className="border border-gray-200 px-4 py-2 text-blue-600">{item.rcb_sticker_number || '-'}</td>
+                <td className="border border-gray-200 px-4 py-2">{item.type}</td>
+                <td className="border border-gray-200 px-4 py-2">{item.brand} {item.model}</td>
+                <td className="border border-gray-200 px-4 py-2">
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    item.status === 'available' ? 'bg-green-100 text-green-800' :
+                    item.status === 'loaned' ? 'bg-yellow-100 text-yellow-800' :
+                    item.status === 'maintenance' ? 'bg-blue-100 text-blue-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {item.status}
+                  </span>
+                </td>
+                <td className="border border-gray-200 px-4 py-2">{item.location_name}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+  const updateItem = async (id, updatedItem) => {
+    try {
+      setLoading(true);
+      const itemData = {
+        asset_id: updatedItem.assetId || updatedItem.asset_id,
+        rcb_sticker_number: updatedItem.rcbStickerNumber || updatedItem.rcb_sticker_number,
+        type: updatedItem.type,
+        category_id: updatedItem.categoryId || updatedItem.category_id,
+        brand: updatedItem.brand,
+        model: updatedItem.model,
+        serial_number: updatedItem.serialNumber || updatedItem.serial_number,
+        purchase_date: updatedItem.purchaseDate || updatedItem.purchase_date,
+        purchase_price: updatedItem.purchasePrice || updatedItem.purchase_price,
+        warranty_expiry: updatedItem.warrantyExpiry || updatedItem.warranty_expiry,
+        status: updatedItem.status,
+        condition: updatedItem.condition,
+        location_id: updatedItem.locationId || updatedItem.location_id,
+        notes: updatedItem.notes,
+        specifications: updatedItem.specifications,
+        parts_used: updatedItem.partsUsed || updatedItem.parts_used,
+        can_leave_building: updatedItem.canLeaveBuilding !== undefined ? updatedItem.canLeaveBuilding : updatedItem.can_leave_building
+      };
+      
+      await ApiService.updateItem(id, itemData);
+      await loadItems();
+      await loadAvailableItems();
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Failed to update item:', error);
+      setError('Failed to update item: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const LoansModal = ({ loans, title }) => (
+    <div>
+      <div className="mb-4">
+        <p className="text-gray-600">Total: {loans.length} loans</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-gray-200">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="border border-gray-200 px-4 py-2 text-left">Asset ID</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Borrower</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Status</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Expected Return</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Approved By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loans.map(loan => (
+              <tr key={loan.id}>
+                <td className="border border-gray-200 px-4 py-2 font-medium">{loan.asset_id}</td>
+                <td className="border border-gray-200 px-4 py-2">{loan.borrower_name}</td>
+                <td className="border border-gray-200 px-4 py-2">
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    loan.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                    loan.status === 'active' ? 'bg-green-100 text-green-800' :
+                    loan.status === 'returned' ? 'bg-blue-100 text-blue-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {loan.status}
+                  </span>
+                </td>
+                <td className="border border-gray-200 px-4 py-2">{loan.expected_return}</td>
+                <td className="border border-gray-200 px-4 py-2">{loan.approved_by_name || 'N/A'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const loadLoans = useCallback(async () => {
+    try {
+      const data = await ApiService.getLoans();
+      setLoans(data);
+    } catch (error) {
+      console.error('Failed to load loans:', error);
+      setError('Failed to load loans: ' + error.message);
+    }
+  }, []);
+
+  const approveLoan = async (loanId) => {
+    try {
+      setLoading(true);
+      await ApiService.approveLoan(loanId);
+      await loadLoans();
+      await loadItems();
+      await loadAvailableItems();
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Failed to approve loan:', error);
+      setError('Failed to approve loan: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const denyLoan = async (loanId) => {
+    try {
+      setLoading(true);
+      await ApiService.denyLoan(loanId);
+      await loadLoans();
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Failed to deny loan:', error);
+      setError('Failed to deny loan: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const MaintenanceItemsModal = ({ items, title, onStatusChange }) => (
+    <div>
+      <div className="mb-4">
+        <p className="text-gray-600">Total: {items.length} items</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border border-gray-200">
+          <thead>
+            <tr className="bg-gray-50">
+              <th className="border border-gray-200 px-4 py-2 text-left">Asset ID</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">RCB Sticker</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Type</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Brand/Model</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Condition</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Location</th>
+              <th className="border border-gray-200 px-4 py-2 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(item => (
+              <tr key={item.id}>
+                <td className="border border-gray-200 px-4 py-2 font-medium">{item.asset_id}</td>
+                <td className="border border-gray-200 px-4 py-2 text-blue-600">{item.rcb_sticker_number || '-'}</td>
+                <td className="border border-gray-200 px-4 py-2">{item.type}</td>
+                <td className="border border-gray-200 px-4 py-2">{item.brand} {item.model}</td>
+                <td className="border border-gray-200 px-4 py-2 capitalize">{item.condition}</td>
+                <td className="border border-gray-200 px-4 py-2">{item.location_name}</td>
+                <td className="border border-gray-200 px-4 py-2">
+                  <button
+                    onClick={() => onStatusChange(item.id, { ...item, status: 'available' })}
+                    disabled={loading}
+                    className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 disabled:opacity-50"
+                  >
+                    Mark Available
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+  const ErrorDisplay = () => {
+    if (!error) return null;
+    return (
+      <div className="bg-gsu-red bg-opacity-10 border border-gsu-red text-gsu-red px-4 py-3 rounded mb-4 font-primary">
+        <div className="flex justify-between items-center">
+          <span>{error}</span>
+          <button 
+            onClick={() => setError('')}
+            className="text-gsu-red hover:text-gsu-red hover:opacity-80 text-xl font-bold"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    );
+  };
+  const LoadingSpinner = () => (
+    <div className="flex justify-center items-center py-4">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gsu-blue"></div>
+    </div>
+  );
+  const returnItem = async (loanId, returnData = {}) => {
+    try {
+      setLoading(true);
+      await ApiService.returnItem(loanId, returnData);
+      await loadLoans();
+      await loadItems();
+      await loadAvailableItems();
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Failed to return item:', error);
+      setError('Failed to return item: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
   //login
@@ -245,9 +567,489 @@ const InventoryManager = () => {
       </div>
     );
   };
-  const ReturnConfirmationModal = () => {
-    return (<div>Return Confirmation Modal</div>);
-  }
+  const ReturnConfirmationModal = ({ isOpen, onClose, loan }) => {
+    const [returnFormData, setReturnFormData] = useState({
+      return_condition: 'excellent',
+      return_notes: '',
+      // Additional fields based on product type
+      physical_damage: false,
+      power_adapter_returned: false,
+      original_packaging: false,
+      screen_condition: 'excellent',
+      keyboard_condition: 'excellent',
+      ports_working: true,
+      battery_condition: 'excellent',
+      cables_returned: false,
+      stand_returned: false,
+      protective_case_returned: false,
+      stylus_returned: false,
+      charging_cable_returned: false,
+      all_accessories_returned: false
+    });
+
+    if (!isOpen || !loan) return null;
+
+    const handleReturnSubmit = async () => {
+      try {
+        await returnItem(loan.id, returnFormData);
+        setShowReturnModal(false);
+        setReturnLoanData(null);
+        setReturnFormData({
+          return_condition: 'excellent',
+          return_notes: '',
+          physical_damage: false,
+          power_adapter_returned: false,
+          original_packaging: false,
+          screen_condition: 'excellent',
+          keyboard_condition: 'excellent',
+          ports_working: true,
+          battery_condition: 'excellent',
+          cables_returned: false,
+          stand_returned: false,
+          protective_case_returned: false,
+          stylus_returned: false,
+          charging_cable_returned: false,
+          all_accessories_returned: false
+        });
+      } catch (error) {
+        // Error handling is done in returnItem function
+      }
+    };
+
+    const renderProductSpecificFields = () => {
+      const itemType = loan.type?.toLowerCase();
+      
+      switch (itemType) {
+        case 'laptop':
+          return (
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4">
+                <h4 className="text-lg font-semibold text-white font-secondary flex items-center">
+                  <Laptop className="h-5 w-5 mr-2" />
+                  Laptop Inspection Checklist
+                </h4>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Screen Condition</label>
+                    <select
+                      value={returnFormData.screen_condition}
+                      onChange={(e) => setReturnFormData({...returnFormData, screen_condition: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 font-primary"
+                    >
+                      <option value="excellent">Excellent - No damage</option>
+                      <option value="good">Good - Minor scratches</option>
+                      <option value="fair">Fair - Noticeable wear</option>
+                      <option value="poor">Poor - Cracks or significant damage</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Keyboard Condition</label>
+                    <select
+                      value={returnFormData.keyboard_condition}
+                      onChange={(e) => setReturnFormData({...returnFormData, keyboard_condition: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 font-primary"
+                    >
+                      <option value="excellent">Excellent - All keys working</option>
+                      <option value="good">Good - All keys working, minor wear</option>
+                      <option value="fair">Fair - Some keys sticky</option>
+                      <option value="poor">Poor - Keys missing or not working</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Battery Condition</label>
+                    <select
+                      value={returnFormData.battery_condition}
+                      onChange={(e) => setReturnFormData({...returnFormData, battery_condition: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 font-primary"
+                    >
+                      <option value="excellent">Excellent - Holds charge well</option>
+                      <option value="good">Good - Normal battery life</option>
+                      <option value="fair">Fair - Reduced battery life</option>
+                      <option value="poor">Poor - Battery issues</option>
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="ports_working"
+                        checked={returnFormData.ports_working}
+                        onChange={(e) => setReturnFormData({...returnFormData, ports_working: e.target.checked})}
+                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="ports_working" className="ml-3 text-sm text-gray-700 font-primary">
+                        All ports working (USB, HDMI, Audio)
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="power_adapter_returned"
+                        checked={returnFormData.power_adapter_returned}
+                        onChange={(e) => setReturnFormData({...returnFormData, power_adapter_returned: e.target.checked})}
+                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="power_adapter_returned" className="ml-3 text-sm text-gray-700 font-primary">
+                        Power adapter returned
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="original_packaging"
+                        checked={returnFormData.original_packaging}
+                        onChange={(e) => setReturnFormData({...returnFormData, original_packaging: e.target.checked})}
+                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="original_packaging" className="ml-3 text-sm text-gray-700 font-primary">
+                        Returned with original laptop bag/case
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+          
+        case 'tablet':
+          return (
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4">
+                <h4 className="text-lg font-semibold text-white font-secondary flex items-center">
+                  <Laptop className="h-5 w-5 mr-2" />
+                  Tablet Inspection Checklist
+                </h4>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Screen Condition</label>
+                    <select
+                      value={returnFormData.screen_condition}
+                      onChange={(e) => setReturnFormData({...returnFormData, screen_condition: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-primary"
+                    >
+                      <option value="excellent">Excellent - No scratches</option>
+                      <option value="good">Good - Minor scratches</option>
+                      <option value="fair">Fair - Noticeable scratches</option>
+                      <option value="poor">Poor - Cracks or major damage</option>
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="protective_case_returned"
+                        checked={returnFormData.protective_case_returned}
+                        onChange={(e) => setReturnFormData({...returnFormData, protective_case_returned: e.target.checked})}
+                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="protective_case_returned" className="ml-3 text-sm text-gray-700 font-primary">
+                        Protective case returned
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="stylus_returned"
+                        checked={returnFormData.stylus_returned}
+                        onChange={(e) => setReturnFormData({...returnFormData, stylus_returned: e.target.checked})}
+                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="stylus_returned" className="ml-3 text-sm text-gray-700 font-primary">
+                        Stylus/Apple Pencil returned (if applicable)
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="charging_cable_returned"
+                        checked={returnFormData.charging_cable_returned}
+                        onChange={(e) => setReturnFormData({...returnFormData, charging_cable_returned: e.target.checked})}
+                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="charging_cable_returned" className="ml-3 text-sm text-gray-700 font-primary">
+                        Charging cable returned
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+          
+        case 'monitor':
+          return (
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+                <h4 className="text-lg font-semibold text-white font-secondary flex items-center">
+                  <Laptop className="h-5 w-5 mr-2" />
+                  Monitor Inspection Checklist
+                </h4>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Screen Condition</label>
+                    <select
+                      value={returnFormData.screen_condition}
+                      onChange={(e) => setReturnFormData({...returnFormData, screen_condition: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-primary"
+                    >
+                      <option value="excellent">Excellent - No dead pixels</option>
+                      <option value="good">Good - Working perfectly</option>
+                      <option value="fair">Fair - Minor display issues</option>
+                      <option value="poor">Poor - Dead pixels or major issues</option>
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="stand_returned"
+                        checked={returnFormData.stand_returned}
+                        onChange={(e) => setReturnFormData({...returnFormData, stand_returned: e.target.checked})}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="stand_returned" className="ml-3 text-sm text-gray-700 font-primary">
+                        Monitor stand returned
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="cables_returned"
+                        checked={returnFormData.cables_returned}
+                        onChange={(e) => setReturnFormData({...returnFormData, cables_returned: e.target.checked})}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="cables_returned" className="ml-3 text-sm text-gray-700 font-primary">
+                        All cables returned (HDMI, USB-C, Power)
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="original_packaging"
+                        checked={returnFormData.original_packaging}
+                        onChange={(e) => setReturnFormData({...returnFormData, original_packaging: e.target.checked})}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="original_packaging" className="ml-3 text-sm text-gray-700 font-primary">
+                        Original box/packaging returned
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+          
+        case 'webcam':
+        case 'clickers':
+        case 'adapter':
+        case 'charger':
+          return (
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-orange-600 to-orange-700 px-6 py-4">
+                <h4 className="text-lg font-semibold text-white font-secondary flex items-center">
+                  <Settings className="h-5 w-5 mr-2" />
+                  Accessory Inspection Checklist
+                </h4>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="all_accessories_returned"
+                      checked={returnFormData.all_accessories_returned}
+                      onChange={(e) => setReturnFormData({...returnFormData, all_accessories_returned: e.target.checked})}
+                      className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="all_accessories_returned" className="ml-3 text-sm text-gray-700 font-primary">
+                      All accessories/cables included
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="original_packaging"
+                      checked={returnFormData.original_packaging}
+                      onChange={(e) => setReturnFormData({...returnFormData, original_packaging: e.target.checked})}
+                      className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="original_packaging" className="ml-3 text-sm text-gray-700 font-primary">
+                      Original packaging returned
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+          
+        default:
+          return (
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-gsu-cool-grey to-gray-600 px-6 py-4">
+                <h4 className="text-lg font-semibold text-white font-secondary flex items-center">
+                  <CheckCircle className="h-5 w-5 mr-2" />
+                  General Equipment Inspection
+                </h4>
+              </div>
+              
+              <div className="p-6">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="all_accessories_returned"
+                    checked={returnFormData.all_accessories_returned}
+                    onChange={(e) => setReturnFormData({...returnFormData, all_accessories_returned: e.target.checked})}
+                    className="h-4 w-4 text-gsu-blue focus:ring-gsu-blue border-gray-300 rounded"
+                  />
+                  <label htmlFor="all_accessories_returned" className="ml-3 text-sm text-gray-700 font-primary">
+                    All accessories included and accounted for
+                  </label>
+                </div>
+              </div>
+            </div>
+          );
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-96 overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-gsu-blue to-gsu-cool-blue px-8 py-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-2xl font-bold text-white font-secondary">
+                  Equipment Return Confirmation
+                </h3>
+                <p className="text-gsu-light-blue font-primary">
+                  {loan.asset_id} - {loan.brand} {loan.model}
+                </p>
+              </div>
+              <button 
+                onClick={onClose}
+                className="text-white hover:text-gsu-light-blue transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-8 space-y-8">
+            {/* Overall Condition Section */}
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-gsu-blue to-gsu-cool-blue px-6 py-4">
+                <h4 className="text-lg font-semibold text-white font-secondary flex items-center">
+                  <CheckCircle className="h-5 w-5 mr-2" />
+                  General Condition Assessment
+                </h4>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Overall Condition</label>
+                  <select
+                    value={returnFormData.return_condition}
+                    onChange={(e) => setReturnFormData({...returnFormData, return_condition: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gsu-blue focus:border-gsu-blue font-primary"
+                  >
+                    <option value="excellent">Excellent - Like new condition</option>
+                    <option value="good">Good - Minor wear, fully functional</option>
+                    <option value="fair">Fair - Noticeable wear, some issues</option>
+                    <option value="poor">Poor - Significant damage or malfunction</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="physical_damage"
+                    checked={returnFormData.physical_damage}
+                    onChange={(e) => setReturnFormData({...returnFormData, physical_damage: e.target.checked})}
+                    className="h-4 w-4 text-gsu-red focus:ring-gsu-red border-gray-300 rounded"
+                  />
+                  <label htmlFor="physical_damage" className="ml-3 text-sm text-gray-700 font-primary">
+                    Physical damage noted (dents, cracks, scratches)
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Product-specific inspection */}
+            {renderProductSpecificFields()}
+
+            {/* Return Notes Section */}
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-gray-600 to-gray-700 px-6 py-4">
+                <h4 className="text-lg font-semibold text-white font-secondary flex items-center">
+                  <Edit className="h-5 w-5 mr-2" />
+                  Additional Notes
+                </h4>
+              </div>
+              
+              <div className="p-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">
+                  Return Notes
+                  <span className="text-gray-500 text-xs ml-1 font-primary">(Optional)</span>
+                </label>
+                <textarea
+                  value={returnFormData.return_notes}
+                  onChange={(e) => setReturnFormData({...returnFormData, return_notes: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 font-primary"
+                  rows="4"
+                  placeholder="Any additional notes about the condition or issues..."
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="bg-gray-50 px-8 py-6 border-t">
+            <div className="flex justify-end space-x-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-6 py-3 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 font-primary font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReturnSubmit}
+                disabled={loading}
+                className="px-8 py-3 bg-gsu-blue text-white rounded-md hover:bg-opacity-90 disabled:opacity-50 font-primary font-semibold shadow-md"
+              >
+                {loading ? 'Processing Return...' : 'Confirm Return'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
   const InventoryManagement = () => {
     return (<div>Return Confirmation Modal</div>);
   }
@@ -307,9 +1109,9 @@ const InventoryManager = () => {
           <div className="bg-white p-8 rounded-lg shadow-md cursor-pointer hover:shadow-xl hover:scale-105 active:shadow-lg active:scale-100 transition-all duration-200 transform"
                onClick={() => showStatsModal('totalItems')}>
             <div className="flex items-center">
-              <div className="p-4 bg-blue-100 rounded-full">
+              {<div className="p-4 bg-blue-100 rounded-full">
                 <Settings className="h-8 w-8 text-blue-600" />
-              </div>
+              </div>}
               <div className="ml-6">
                 <p className="text-sm font-bold text-gsu-cool-grey font-primary">Total Items</p>
                 <p className="text-3xl font-bold text-gsu-blue font-secondary">
@@ -422,15 +1224,164 @@ const InventoryManager = () => {
           {modalContent}
         </Modal>
 
-        <ReturnConfirmationModal
+        {<ReturnConfirmationModal
           isOpen={showReturnModal}
           onClose={() => {
             setShowReturnModal(false);
             setReturnLoanData(null);
           }}
           loan={returnLoanData}
-        />
+        />}
       </div>
+    );
+  };
+  // Main Navigation
+  const Navigation = () => {
+    const tabs = [
+      { id: 'dashboard', label: 'Dashboard', icon: Settings },
+      { id: 'inventory', label: 'Inventory', icon: Search },
+      { id: 'loans', label: 'Loans', icon: Clock },
+      { id: 'reports', label: 'Reports', icon: FileText },
+    ];
+
+    if (currentUser.role === 'admin' || currentUser.role === 'staff') {
+      tabs.splice(3, 0, { id: 'loaner-applications', label: 'Loaner Apps', icon: Laptop });
+      tabs.splice(4, 0, { id: 'maintenance', label: 'Maintenance', icon: Wrench });
+    }
+
+    if (currentUser.role === 'admin') {
+      tabs.push({ id: 'users', label: 'Users', icon: User });
+    }
+
+    return (
+      <>
+        {/* Mobile menu overlay */}
+        {isMobileMenuOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+        
+        <nav className="bg-gsu-blue shadow-md relative z-50">
+          <div className="max-w-full mx-auto px-4 sm:px-6">
+          <div className="flex justify-between items-center py-3">
+            {/* Logo Section */}
+            <div className="flex items-center space-x-3">
+              <img 
+                src="/gsu-logo.png" 
+                alt="Georgia State University" 
+                className="h-10 sm:h-14 w-auto"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextElementSibling.style.display = 'block';
+                }}
+              />
+              <h1 className="text-sm sm:text-lg font-bold text-white font-secondary tracking-tight" style={{display: 'none'}}>
+                GSU LOANER SYSTEM
+              </h1>
+            </div>
+
+            {/* Desktop Navigation */}
+            <div className="hidden lg:flex items-center space-x-3">
+              {tabs.map(tab => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center px-3 py-2 rounded-md text-sm font-semibold font-primary whitespace-nowrap ${
+                      activeTab === tab.id
+                        ? 'bg-white text-gsu-blue'
+                        : 'text-white hover:text-gray-200'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 mr-2" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Desktop User Info */}
+            <div className="hidden lg:flex items-center space-x-3">
+              <span className="text-sm text-white font-primary">Welcome, {currentUser.name}</span>
+              <span className="px-3 py-1 text-xs bg-white text-gsu-blue rounded font-medium font-primary">{currentUser.role}</span>
+              {currentUser.user_type && (
+                <span className="px-3 py-1 text-xs bg-gsu-light-blue text-white rounded font-medium font-primary">{currentUser.user_type}</span>
+              )}
+              <button
+                onClick={logout}
+                className="text-sm text-white hover:text-gray-200 font-semibold font-primary px-2 py-1"
+              >
+                Logout
+              </button>
+            </div>
+
+            {/* Mobile Menu Button */}
+            <div className="lg:hidden flex items-center space-x-2">
+              <span className="text-sm text-white font-primary truncate max-w-24">{currentUser.name}</span>
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="text-white hover:text-gray-200 p-2"
+              >
+                <Menu className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Menu */}
+          {isMobileMenuOpen && (
+            <div className="lg:hidden border-t border-gsu-light-blue">
+              <div className="px-2 pt-2 pb-3 space-y-1">
+                {tabs.map(tab => {
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`flex items-center w-full px-3 py-2 rounded-md text-base font-semibold font-primary ${
+                        activeTab === tab.id
+                          ? 'bg-white text-gsu-blue'
+                          : 'text-white hover:text-gray-200 hover:bg-gsu-light-blue hover:bg-opacity-30'
+                      }`}
+                    >
+                      <Icon className="h-5 w-5 mr-3" />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+                
+                {/* Mobile User Info */}
+                <div className="pt-4 border-t border-gsu-light-blue">
+                  <div className="px-3 py-2">
+                    <p className="text-base text-white font-primary">Welcome, {currentUser.name}</p>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <span className="px-2 py-1 text-xs bg-white text-gsu-blue rounded font-medium font-primary">{currentUser.role}</span>
+                      {currentUser.user_type && (
+                        <span className="px-2 py-1 text-xs bg-gsu-light-blue text-white rounded font-medium font-primary">{currentUser.user_type}</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-white hover:text-gray-200 font-semibold font-primary"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </nav>
+      </>
     );
   };
   // Main App Component
@@ -458,6 +1409,15 @@ const InventoryManager = () => {
         return <Dashboard />;
     }
   };
-  return renderContent();
-}
+  return (
+      <div className="min-h-screen bg-gray-100">
+        <Navigation />
+        <main className="max-w-7xl mx-auto py-4 sm:py-6 px-4 sm:px-6">
+          <ErrorDisplay />
+          {loading && <LoadingSpinner />}
+          {renderContent()}
+        </main>
+      </div>
+    );
+};
 export default InventoryManager;
