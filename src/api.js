@@ -42,6 +42,11 @@ class ApiService {
       throw error;
     }
   }
+
+  logout() {
+    this.setToken(null);
+  }
+  
   async getUsers() {
     return this.request('/users');
   }
