@@ -7,15 +7,31 @@ module.exports = {
     extend: {
       colors: {
         'gsu': {
+          'blue': '#0039A6',        // Georgia State Blue - Primary
+          'red': '#CC0000',         // Red Accent - Secondary
+          'cool-blue': '#0071CE',   // Cool Blue - Secondary
+          'vibrant-blue': '#00AEEF', // Vibrant Blue - Secondary
+          'light-blue': '#97CAEB',  // Light Blue - Secondary
+          'cool-grey': '#767679',   // Cool Gray 9 - Secondary
+          'white': '#FFFFFF',       // White - Primary
+          'dark': '#333333',        // Dark text
+          'medium-grey': '#CCCCCC', // Medium Grey for borders
+        },
+        // Keep robinson colors for backward compatibility during transition
+        'robinson': {
           'blue': '#0039A6',
           'red': '#CC0000',
-          'cool-blue': '#0071CE',
-          'vibrant-blue': '#00AEEF',
           'light-blue': '#97CAEB',
-          'cool-grey': '#767679',
           'white': '#FFFFFF',
+          'cool-grey': '#767679',
+          'grey': '#767679',
+          'dark': '#333333',
           'medium-grey': '#CCCCCC',
-        },
+          'legacy-navy': '#001F5B',
+          'pioneer-green': '#006E42',
+          'vibrant-blue': '#00AEEF',
+          'night-red': '#770520'
+        }
       },
       fontFamily: {
         'primary': [
