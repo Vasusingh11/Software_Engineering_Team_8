@@ -1,6 +1,6 @@
 import './App.css';
-import {useState, useCallback} from 'react';
-import {Menu, Edit, CheckCircle, Clock, AlertTriangle, Wrench, X, Settings, Search, FileText, Laptop, User,} from 'lucide-react';
+import {useState, useEffect, useCallback} from 'react';
+import {Menu, Edit, CheckCircle, Clock, AlertTriangle, Wrench, X, Settings, Search, FileText, Laptop, User, Plus, UserPlus} from 'lucide-react';
 import ApiService from './api';
 
 const InventoryManager = () => {
@@ -21,6 +21,10 @@ const InventoryManager = () => {
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
+  const [loanFilterBorrower, setLoanFilterBorrower] = useState('all');
+  const [loanFilterStatus, setLoanFilterStatus] = useState('all');
+  const [selectedLoan, setSelectedLoan] = useState(null);
+  const [showLoanDetailsModal, setShowLoanDetailsModal] = useState(false);
   
   const Modal = ({ isOpen, onClose, title, children }) => {
     if (!isOpen) return null;
@@ -344,6 +348,37 @@ const InventoryManager = () => {
     }
   }, [loadItems, loadLoans, loadDashboardStats, loadCategories, loadLocations, loadMaintenanceRecords, loadUsers, loadAvailableItems]);
 
+  // Check for existing login on app start
+  useEffect(() => {
+    const checkAuthAndLoadData = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const user = await ApiService.getUserProfile();
+          setCurrentUser(user);
+          await loadInitialData();
+        } catch {
+          ApiService.logout();
+        }
+      }
+    };
+    
+    checkAuthAndLoadData();
+  }, [loadInitialData]);
+
+  // Close mobile menu on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) { // lg breakpoint
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  
   const updateItem = async (id, updatedItem) => {
     try {
       setLoading(true);
@@ -378,6 +413,7 @@ const InventoryManager = () => {
       setLoading(false);
     }
   };
+  
   const LoansModal = ({ loans, title }) => (
     <div>
       <div className="mb-4">
@@ -492,6 +528,513 @@ const InventoryManager = () => {
       </div>
     </div>
   );
+  
+  const openLoanDetails = (loan) => {
+	setSelectedLoan(loan);
+	setShowLoanDetailsModal(true);
+  };
+  
+    // Loan Details Modal
+  const LoanDetailsModal = ({ isOpen, onClose, loan }) => {
+    if (!isOpen || !loan) return null;
+
+    const formatReturnDetails = (returnData) => {
+      if (!returnData) return null;
+      
+      const itemType = loan.type?.toLowerCase();
+      
+      const inspectionSections = {
+        overall: {
+          title: 'Overall Assessment',
+          icon: '📋',
+          color: 'blue',
+          items: []
+        },
+        hardware: {
+          title: 'Hardware Inspection',
+          icon: '🔧',
+          color: 'green',
+          items: []
+        },
+        accessories: {
+          title: 'Accessories & Components',
+          icon: '📦',
+          color: 'purple',
+          items: []
+        },
+        notes: {
+          title: 'Additional Notes',
+          icon: '📝',
+          color: 'gray',
+          items: []
+        }
+      };
+
+      // Overall condition assessment
+      if (returnData.return_condition) {
+        const conditionColor = {
+          'excellent': '🟢',
+          'good': '🟡', 
+          'fair': '🟠',
+          'poor': '🔴',
+          'damaged': '❌'
+        }[returnData.return_condition] || '⚪';
+        
+        inspectionSections.overall.items.push({
+          label: 'Overall Condition',
+          value: returnData.return_condition,
+          status: conditionColor,
+          detail: returnData.return_condition === 'excellent' ? 'No visible wear or damage' :
+                  returnData.return_condition === 'good' ? 'Minor wear, fully functional' :
+                  returnData.return_condition === 'fair' ? 'Noticeable wear, some issues noted' :
+                  returnData.return_condition === 'poor' ? 'Significant wear or damage' :
+                  returnData.return_condition === 'damaged' ? 'Requires repair or replacement' : ''
+        });
+      }
+
+      if (returnData.physical_damage) {
+        inspectionSections.overall.items.push({
+          label: 'Physical Damage',
+          value: 'Damage Reported',
+          status: '⚠️',
+          detail: 'Physical damage noted during inspection'
+        });
+      }
+
+      // Product-specific hardware inspection
+      if (itemType === 'laptop') {
+        if (returnData.screen_condition) {
+          const screenStatus = returnData.screen_condition === 'excellent' ? '✅' : 
+                              returnData.screen_condition === 'good' ? '🟡' : 
+                              returnData.screen_condition === 'fair' ? '🟠' : '❌';
+          inspectionSections.hardware.items.push({
+            label: 'Display Screen',
+            value: returnData.screen_condition,
+            status: screenStatus,
+            detail: returnData.screen_condition === 'excellent' ? 'No scratches, cracks, or dead pixels' :
+                   returnData.screen_condition === 'good' ? 'Minor scratches, fully functional' :
+                   returnData.screen_condition === 'fair' ? 'Noticeable wear, some display issues' :
+                   'Significant damage or display problems'
+          });
+        }
+
+        if (returnData.keyboard_condition) {
+          const keyboardStatus = returnData.keyboard_condition === 'excellent' ? '✅' : 
+                                 returnData.keyboard_condition === 'good' ? '🟡' : 
+                                 returnData.keyboard_condition === 'fair' ? '🟠' : '❌';
+          inspectionSections.hardware.items.push({
+            label: 'Keyboard',
+            value: returnData.keyboard_condition,
+            status: keyboardStatus,
+            detail: returnData.keyboard_condition === 'excellent' ? 'All keys responsive, no wear' :
+                   returnData.keyboard_condition === 'good' ? 'All keys working, minor wear visible' :
+                   returnData.keyboard_condition === 'fair' ? 'Some keys sticky or worn' :
+                   'Keys missing or not functioning properly'
+          });
+        }
+
+        if (returnData.battery_condition) {
+          const batteryStatus = returnData.battery_condition === 'excellent' ? '🔋' : 
+                               returnData.battery_condition === 'good' ? '🟡' : 
+                               returnData.battery_condition === 'fair' ? '🟠' : '⚠️';
+          inspectionSections.hardware.items.push({
+            label: 'Battery',
+            value: returnData.battery_condition,
+            status: batteryStatus,
+            detail: returnData.battery_condition === 'excellent' ? 'Holds full charge, optimal performance' :
+                   returnData.battery_condition === 'good' ? 'Normal battery life, good performance' :
+                   returnData.battery_condition === 'fair' ? 'Reduced battery life, may need replacement soon' :
+                   'Poor battery performance, requires immediate attention'
+          });
+        }
+
+        if (returnData.ports_working !== undefined) {
+          inspectionSections.hardware.items.push({
+            label: 'Ports & Connectivity',
+            value: returnData.ports_working ? 'All Working' : 'Issues Detected',
+            status: returnData.ports_working ? '✅' : '❌',
+            detail: returnData.ports_working ? 'USB, HDMI, audio ports tested and functional' : 'One or more ports not functioning properly'
+          });
+        }
+
+        // Laptop accessories
+        if (returnData.power_adapter_returned !== undefined) {
+          inspectionSections.accessories.items.push({
+            label: 'Power Adapter',
+            value: returnData.power_adapter_returned ? 'Returned' : 'Missing',
+            status: returnData.power_adapter_returned ? '✅' : '❌',
+            detail: returnData.power_adapter_returned ? 'Original power adapter included' : 'Power adapter not returned with device'
+          });
+        }
+
+        if (returnData.original_packaging !== undefined) {
+          inspectionSections.accessories.items.push({
+            label: 'Laptop Bag/Case',
+            value: returnData.original_packaging ? 'Returned' : 'Missing',
+            status: returnData.original_packaging ? '✅' : '❌',
+            detail: returnData.original_packaging ? 'Original carrying case or bag included' : 'Carrying case or bag not returned'
+          });
+        }
+
+      } else if (itemType === 'tablet') {
+        if (returnData.screen_condition) {
+          const screenStatus = returnData.screen_condition === 'excellent' ? '✅' : 
+                              returnData.screen_condition === 'good' ? '🟡' : 
+                              returnData.screen_condition === 'fair' ? '🟠' : '❌';
+          inspectionSections.hardware.items.push({
+            label: 'Touchscreen Display',
+            value: returnData.screen_condition,
+            status: screenStatus,
+            detail: 'Touch responsiveness and display quality assessed'
+          });
+        }
+
+        if (returnData.protective_case_returned !== undefined) {
+          inspectionSections.accessories.items.push({
+            label: 'Protective Case',
+            value: returnData.protective_case_returned ? 'Returned' : 'Missing',
+            status: returnData.protective_case_returned ? '✅' : '❌',
+            detail: returnData.protective_case_returned ? 'Original protective case included' : 'Protective case not returned'
+          });
+        }
+
+        if (returnData.stylus_returned !== undefined) {
+          inspectionSections.accessories.items.push({
+            label: 'Stylus/Apple Pencil',
+            value: returnData.stylus_returned ? 'Returned' : 'Missing',
+            status: returnData.stylus_returned ? '✅' : '❌',
+            detail: returnData.stylus_returned ? 'Digital stylus or Apple Pencil included' : 'Stylus not returned (if applicable)'
+          });
+        }
+
+        if (returnData.charging_cable_returned !== undefined) {
+          inspectionSections.accessories.items.push({
+            label: 'Charging Cable',
+            value: returnData.charging_cable_returned ? 'Returned' : 'Missing',
+            status: returnData.charging_cable_returned ? '✅' : '❌',
+            detail: returnData.charging_cable_returned ? 'Original charging cable included' : 'Charging cable not returned'
+          });
+        }
+
+      } else if (itemType === 'monitor') {
+        if (returnData.screen_condition) {
+          const screenStatus = returnData.screen_condition === 'excellent' ? '✅' : 
+                              returnData.screen_condition === 'good' ? '🟡' : 
+                              returnData.screen_condition === 'fair' ? '🟠' : '❌';
+          inspectionSections.hardware.items.push({
+            label: 'Display Panel',
+            value: returnData.screen_condition,
+            status: screenStatus,
+            detail: 'Display quality, dead pixels, and color accuracy checked'
+          });
+        }
+
+        if (returnData.stand_returned !== undefined) {
+          inspectionSections.accessories.items.push({
+            label: 'Monitor Stand',
+            value: returnData.stand_returned ? 'Returned' : 'Missing',
+            status: returnData.stand_returned ? '✅' : '❌',
+            detail: returnData.stand_returned ? 'Original monitor stand or mount included' : 'Monitor stand not returned'
+          });
+        }
+
+        if (returnData.cables_returned !== undefined) {
+          inspectionSections.accessories.items.push({
+            label: 'Connection Cables',
+            value: returnData.cables_returned ? 'All Returned' : 'Missing',
+            status: returnData.cables_returned ? '✅' : '❌',
+            detail: returnData.cables_returned ? 'HDMI, USB-C, and power cables included' : 'One or more cables missing'
+          });
+        }
+
+      } else {
+        // General equipment
+        if (returnData.all_accessories_returned !== undefined) {
+          inspectionSections.accessories.items.push({
+            label: 'All Accessories',
+            value: returnData.all_accessories_returned ? 'Complete' : 'Incomplete',
+            status: returnData.all_accessories_returned ? '✅' : '❌',
+            detail: returnData.all_accessories_returned ? 'All original accessories accounted for' : 'Some accessories missing or not returned'
+          });
+        }
+      }
+
+      // Additional notes and observations
+      if (returnData.return_notes && returnData.return_notes.trim()) {
+        inspectionSections.notes.items.push({
+          label: 'Staff Observations',
+          value: returnData.return_notes,
+          status: '📝',
+          detail: 'Additional notes recorded during return inspection'
+        });
+      }
+
+      // Remove empty sections
+      Object.keys(inspectionSections).forEach(key => {
+        if (inspectionSections[key].items.length === 0) {
+          delete inspectionSections[key];
+        }
+      });
+
+      return inspectionSections;
+    };
+
+    const returnDetails = formatReturnDetails(loan.return_inspection);
+
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-gsu-blue to-gsu-cool-blue px-6 py-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-2xl font-bold text-white font-secondary">
+                  Loan Details
+                </h3>
+                <p className="text-gsu-light-blue font-primary">
+                  {loan.loan_number || `Loan #${loan.id}`}
+                </p>
+              </div>
+              <button 
+                onClick={onClose}
+                className="text-white hover:text-gsu-light-blue transition-colors duration-200"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Loan Application Details */}
+              <div className="space-y-6">
+                <div className="bg-gray-50 rounded-lg p-6">
+                  <h4 className="text-lg font-bold text-gsu-blue mb-4 font-secondary flex items-center">
+                    <FileText className="h-5 w-5 mr-2" />
+                    Loan Application
+                  </h4>
+                  
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-sm font-medium text-gray-600 font-primary">Loan Number:</span>
+                        <p className="text-gsu-blue font-semibold font-primary">{loan.loan_number || `#${loan.id}`}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-600 font-primary">Status:</span>
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full font-primary ${
+                          loan.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          loan.status === 'active' ? 'bg-green-100 text-green-800' :
+                          loan.status === 'returned' ? 'bg-blue-100 text-blue-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {loan.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-sm font-medium text-gray-600 font-primary">Equipment:</span>
+                      <p className="text-gray-900 font-primary">
+                        {loan.asset_id} - {loan.brand} {loan.model} ({loan.type})
+                      </p>
+                      {loan.rcb_sticker_number && (
+                        <p className="text-sm text-blue-600 font-primary">RCB Sticker: {loan.rcb_sticker_number}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <span className="text-sm font-medium text-gray-600 font-primary">Borrower:</span>
+                      <p className="text-gray-900 font-primary">{loan.borrower_name}</p>
+                      {loan.panther_id && (
+                        <p className="text-sm text-gray-600 font-primary">Panther ID: {loan.panther_id}</p>
+                      )}
+                      {loan.user_type && (
+                        <p className="text-sm text-gray-600 font-primary">Type: {loan.user_type}</p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-sm font-medium text-gray-600 font-primary">Request Date:</span>
+                        <p className="text-gray-900 font-primary">{loan.request_date}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-600 font-primary">Expected Return:</span>
+                        <p className="text-gray-900 font-primary">{loan.expected_return}</p>
+                      </div>
+                    </div>
+
+                    {loan.approved_date && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-sm font-medium text-gray-600 font-primary">Approved Date:</span>
+                          <p className="text-gray-900 font-primary">{loan.approved_date}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-gray-600 font-primary">Approved By:</span>
+                          <p className="text-gray-900 font-primary">{loan.approved_by_name || 'N/A'}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <span className="text-sm font-medium text-gray-600 font-primary">Reason:</span>
+                      <p className="text-gray-900 font-primary">{loan.reason}</p>
+                    </div>
+
+                    {loan.application_type && (
+                      <div>
+                        <span className="text-sm font-medium text-gray-600 font-primary">Application Type:</span>
+                        <p className="text-gray-900 font-primary">
+                          {loan.application_type === 'staff_created' ? 'Staff Created' : 'Self Service'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Return Details */}
+              {loan.status === 'returned' && (
+                <div className="space-y-6">
+                  <div className="bg-green-50 rounded-lg p-6">
+                    <h4 className="text-lg font-bold text-green-800 mb-4 font-secondary flex items-center">
+                      <CheckCircle className="h-5 w-5 mr-2" />
+                      Return Inspection
+                    </h4>
+                    
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-sm font-medium text-gray-600 font-primary">Return Date:</span>
+                          <p className="text-gray-900 font-primary">{loan.actual_return}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium text-gray-600 font-primary">Returned By:</span>
+                          <p className="text-gray-900 font-primary">{loan.returned_by_name || 'N/A'}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        {returnDetails && Object.keys(returnDetails).length > 0 ? (
+                          <>
+                            <span className="text-sm font-medium text-gray-600 font-primary mb-3 block">Detailed Inspection Report:</span>
+                            <div className="space-y-4">
+                              {Object.entries(returnDetails).map(([sectionKey, section]) => (
+                                <div key={sectionKey} className="bg-white rounded border">
+                                  {/* Section Header */}
+                                  <div className={`px-3 py-2 bg-${section.color}-50 border-b border-${section.color}-200 rounded-t`}>
+                                    <h6 className={`text-sm font-semibold text-${section.color}-800 font-primary flex items-center`}>
+                                      <span className="mr-2">{section.icon}</span>
+                                      {section.title}
+                                    </h6>
+                                  </div>
+                                  
+                                  {/* Section Items */}
+                                  <div className="p-3 space-y-2">
+                                    {section.items.map((item, index) => (
+                                      <div key={index} className="flex items-start space-x-2 text-xs">
+                                        <span className="flex-shrink-0 mt-0.5">{item.status}</span>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-medium text-gray-700 font-primary">{item.label}:</span>
+                                            <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${
+                                              item.value.toLowerCase().includes('excellent') || item.value.toLowerCase().includes('returned') || item.value.toLowerCase().includes('working') || item.value.toLowerCase().includes('complete') ? 
+                                                'bg-green-100 text-green-700' :
+                                              item.value.toLowerCase().includes('good') || item.value.toLowerCase().includes('normal') ?
+                                                'bg-yellow-100 text-yellow-700' :
+                                              item.value.toLowerCase().includes('fair') || item.value.toLowerCase().includes('reduced') ?
+                                                'bg-orange-100 text-orange-700' :
+                                              item.value.toLowerCase().includes('poor') || item.value.toLowerCase().includes('missing') || item.value.toLowerCase().includes('damage') || item.value.toLowerCase().includes('issues') ?
+                                                'bg-red-100 text-red-700' :
+                                                'bg-gray-100 text-gray-700'
+                                            }`}>
+                                              {item.value}
+                                            </span>
+                                          </div>
+                                          {item.detail && (
+                                            <p className="text-xs text-gray-500 mt-1 font-primary">{item.detail}</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="bg-white rounded border p-4 text-center">
+                            <div className="text-gray-400 mb-2">📝</div>
+                            <p className="text-sm text-gray-600 font-primary">
+                              No detailed inspection information available for this return.
+                            </p>
+                            <p className="text-xs text-gray-500 font-primary mt-1">
+                              Equipment was returned without completing the detailed inspection form.
+                            </p>
+                            {/* Debug info - can be removed in production */}
+                            {loan.return_inspection && (
+                              <details className="mt-3 text-left">
+                                <summary className="text-xs text-gray-400 cursor-pointer">Debug Info</summary>
+                                <pre className="text-xs text-gray-400 mt-2 bg-gray-100 p-2 rounded overflow-auto">
+                                  {JSON.stringify(loan.return_inspection, null, 2)}
+                                </pre>
+                              </details>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* If not returned yet, show status */}
+              {loan.status !== 'returned' && (
+                <div className="space-y-6">
+                  <div className="bg-blue-50 rounded-lg p-6">
+                    <h4 className="text-lg font-bold text-blue-800 mb-4 font-secondary flex items-center">
+                      <Clock className="h-5 w-5 mr-2" />
+                      Current Status
+                    </h4>
+                    
+                    <div className="space-y-3">
+                      <p className="text-blue-900 font-primary">
+                        {loan.status === 'pending' && 'This loan is awaiting approval.'}
+                        {loan.status === 'active' && 'This equipment is currently on loan.'}
+                        {loan.status === 'denied' && 'This loan request was denied.'}
+                      </p>
+                      
+                      {loan.status === 'active' && (
+                        <div className="bg-white rounded p-3 border border-blue-200">
+                          <p className="text-sm text-gray-600 font-primary">
+                            Expected return date: <span className="font-semibold">{loan.expected_return}</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="bg-gray-50 px-6 py-4 border-t flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 bg-gsu-blue text-white rounded-md hover:bg-gsu-cool-blue font-primary font-semibold"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
   const ErrorDisplay = () => {
     if (!error) return null;
     return (
@@ -1149,8 +1692,597 @@ const InventoryManager = () => {
     return (<div>Return Confirmation Modal</div>);
   }
   const LoanManagement = () => {
-    return (<div>Return Confirmation Modal</div>);
-  }
+    const [showRequestForm, setShowRequestForm] = useState(false);
+    const [loansSearch, setLoansSearch] = useState('');
+    const [debouncedLoansSearch, setDebouncedLoansSearch] = useState('');
+
+    // Debounce loans search
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedLoansSearch(loansSearch);
+      }, 300);
+      return () => clearTimeout(handler);
+    }, [loansSearch]);
+
+    // Updated filter logic to use debouncedLoansSearch
+    const filteredLoans = loans.filter(loan => {
+      const searchText = debouncedLoansSearch.trim().toLowerCase();
+      const fields = [
+        loan.asset_id,
+        loan.borrower_name,
+        loan.reason,
+        loan.panther_id,
+        loan.type,
+        loan.status,
+        loan.approved_by_name,
+        loan.returned_by_name
+      ];
+      const matchesSearch = !searchText || fields.some(field =>
+        field && field.toString().toLowerCase().includes(searchText)
+      );
+      const matchesBorrowerFilter = loanFilterBorrower === 'all' || loan.borrower_id === parseInt(loanFilterBorrower);
+      const matchesStatusFilter = loanFilterStatus === 'all' || loan.status === loanFilterStatus;
+      return matchesSearch && matchesBorrowerFilter && matchesStatusFilter;
+    });
+
+    const RequestForm = () => {
+      const [formData, setFormData] = useState({
+        itemId: '',
+        assetId: '',
+        expectedReturn: '',
+        reason: ''
+      });
+
+      const userAvailableItems = availableItems.filter(item => 
+        currentUser.role === 'borrower' ? item.can_leave_building : true
+      );
+
+      const handleSubmit = async () => {
+        try {
+          await createLoanRequest(formData);
+          setShowRequestForm(false);
+          setFormData({ itemId: '', assetId: '', expectedReturn: '', reason: '' });
+        } catch (error) {
+          // Error is already handled in createLoanRequest
+        }
+      };
+	  
+	    // Item management
+  const addItem = async (newItem) => {
+    try {
+      setLoading(true);
+      const itemData = {
+        asset_id: newItem.assetId,
+        rcb_sticker_number: newItem.rcbStickerNumber,
+        type: newItem.type,
+        category_id: newItem.categoryId,
+        brand: newItem.brand,
+        model: newItem.model,
+        serial_number: newItem.serialNumber,
+        purchase_date: newItem.purchaseDate,
+        purchase_price: newItem.purchasePrice,
+        warranty_expiry: newItem.warrantyExpiry,
+        condition: newItem.condition,
+        location_id: newItem.locationId,
+        notes: newItem.notes,
+        specifications: newItem.specifications,
+        parts_used: newItem.partsUsed,
+        can_leave_building: newItem.canLeaveBuilding !== undefined ? newItem.canLeaveBuilding : 1
+      };
+      
+      await ApiService.createItem(itemData);
+      await loadItems();
+      await loadAvailableItems();
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Failed to add item:', error);
+      setError('Failed to add item: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateItem = async (id, updatedItem) => {
+    try {
+      setLoading(true);
+      const itemData = {
+        asset_id: updatedItem.assetId || updatedItem.asset_id,
+        rcb_sticker_number: updatedItem.rcbStickerNumber || updatedItem.rcb_sticker_number,
+        type: updatedItem.type,
+        category_id: updatedItem.categoryId || updatedItem.category_id,
+        brand: updatedItem.brand,
+        model: updatedItem.model,
+        serial_number: updatedItem.serialNumber || updatedItem.serial_number,
+        purchase_date: updatedItem.purchaseDate || updatedItem.purchase_date,
+        purchase_price: updatedItem.purchasePrice || updatedItem.purchase_price,
+        warranty_expiry: updatedItem.warrantyExpiry || updatedItem.warranty_expiry,
+        status: updatedItem.status,
+        condition: updatedItem.condition,
+        location_id: updatedItem.locationId || updatedItem.location_id,
+        notes: updatedItem.notes,
+        specifications: updatedItem.specifications,
+        parts_used: updatedItem.partsUsed || updatedItem.parts_used,
+        can_leave_building: updatedItem.canLeaveBuilding !== undefined ? updatedItem.canLeaveBuilding : updatedItem.can_leave_building
+      };
+      
+      await ApiService.updateItem(id, itemData);
+      await loadItems();
+      await loadAvailableItems();
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Failed to update item:', error);
+      setError('Failed to update item: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteItem = async (id) => {
+    try {
+      setLoading(true);
+      await ApiService.deleteItem(id);
+      await loadItems();
+      await loadAvailableItems();
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Failed to delete item:', error);
+      setError('Failed to delete item: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const markItemForMaintenance = async (itemId) => {
+    try {
+      const item = items.find(i => i.id === itemId);
+      if (!item) {
+        throw new Error('Item not found');
+      }
+      
+      // Open maintenance form popup with item data
+      setMaintenanceFormItem(item);
+      setShowMaintenanceForm(true);
+    } catch (error) {
+      console.error('Failed to open maintenance form:', error);
+      setError('Failed to open maintenance form: ' + error.message);
+    }
+  };
+
+  const createMaintenanceRecord = async (recordData) => {
+    try {
+      setLoading(true);
+      
+      // Create maintenance record
+      const newRecord = {
+        id: Date.now(),
+        item_id: recordData.item_id,
+        asset_id: recordData.asset_id,
+        issue_description: recordData.issue_description,
+        technician_name: recordData.technician_name,
+        cost: recordData.cost || 0,
+        status: recordData.status || 'pending',
+        resolution_notes: recordData.resolution_notes || '',
+        parts_used: recordData.parts_used || '',
+        maintenance_date: new Date().toISOString().split('T')[0]
+      };
+      
+      // Add to maintenance records
+      setMaintenanceRecords(prev => [...prev, newRecord]);
+      
+      // Update item status based on maintenance record status
+      const item = items.find(i => i.id === recordData.item_id);
+      if (item) {
+        const updatedItemData = {
+          assetId: item.asset_id,
+          rcbStickerNumber: item.rcb_sticker_number,
+          type: item.type,
+          categoryId: item.category_id,
+          brand: item.brand,
+          model: item.model,
+          serialNumber: item.serial_number,
+          purchaseDate: item.purchase_date,
+          purchasePrice: item.purchase_price,
+          warrantyExpiry: item.warranty_expiry,
+          condition: item.condition,
+          locationId: item.location_id,
+          notes: item.notes,
+          specifications: item.specifications,
+          partsUsed: item.parts_used,
+          canLeaveBuilding: item.can_leave_building,
+          // If maintenance is created as completed, mark item as available, otherwise maintenance
+          status: newRecord.status === 'completed' ? 'available' : 'maintenance'
+        };
+        
+        await updateItem(recordData.item_id, updatedItemData);
+      }
+      
+      // Reload dashboard stats to reflect maintenance count
+      await loadDashboardStats();
+      
+      const statusMessage = newRecord.status === 'completed' 
+        ? 'Maintenance record created successfully - Item automatically marked as available' 
+        : 'Maintenance record created successfully';
+      setError(statusMessage);
+    } catch (error) {
+      console.error('Failed to create maintenance record:', error);
+      setError('Failed to create maintenance record: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const importItems = async (file) => {
+    try {
+      setLoading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('http://localhost:5000/api/items/import', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Import failed');
+      }
+
+      const result = await response.json();
+      await loadItems();
+      await loadAvailableItems();
+      await loadDashboardStats();
+      
+      setError(`Import completed: ${result.imported} items imported, ${result.errors.length} errors`);
+    } catch (error) {
+      console.error('Failed to import items:', error);
+      setError('Failed to import items: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+	  const createLoanRequest = async (request) => {
+		try {
+		  setLoading(true);
+		  const loanData = {
+			item_id: parseInt(request.itemId),
+			expected_return: request.expectedReturn,
+			reason: request.reason,
+			loan_number: generateLoanNumber()
+		  };
+		  
+	  const generateLoanNumber = () => {
+		const currentYear = new Date().getFullYear();
+		const existingLoans = loans.filter(loan => 
+		  loan.loan_number && loan.loan_number.includes(currentYear.toString())
+		);
+		const nextNumber = String(existingLoans.length + 1).padStart(3, '0');
+		return `LOAN-${currentYear}-${nextNumber}`;
+	  };
+		  
+		  await ApiService.createLoanRequest(loanData);
+		  await loadLoans();
+		  await loadDashboardStats();
+		} catch (error) {
+		  console.error('Failed to create loan request:', error);
+		  setError('Failed to create loan request: ' + error.message);
+		} finally {
+		  setLoading(false);
+		}
+	  };
+  
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold mb-4">Request Equipment Loan</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Select Item</label>
+              <select
+                value={formData.itemId}
+                onChange={(e) => {
+                  const selectedItem = userAvailableItems.find(item => item.id === parseInt(e.target.value));
+                  setFormData({
+                    ...formData,
+                    itemId: e.target.value,
+                    assetId: selectedItem ? selectedItem.asset_id : ''
+                  });
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                required
+              >
+                <option value="">Select an item...</option>
+                {userAvailableItems.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {item.asset_id} - {item.type} ({item.brand} {item.model})
+                    {item.rcb_sticker_number && ` - RCB: ${item.rcb_sticker_number}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Expected Return Date</label>
+              <input
+                type="date"
+                value={formData.expectedReturn}
+                onChange={(e) => setFormData({...formData, expectedReturn: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                required
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Reason for Request</label>
+              <textarea
+                value={formData.reason}
+                onChange={(e) => setFormData({...formData, reason: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                rows="3"
+                required
+              />
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+              >
+                {loading ? 'Submitting...' : 'Submit Request'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRequestForm(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold font-secondary tracking-tight">LOAN MANAGEMENT</h2>
+          {currentUser.role === 'borrower' && (
+                          <button
+                onClick={() => setShowRequestForm(true)}
+                disabled={loading}
+                className="flex items-center px-4 py-2 bg-robinson-blue text-white rounded-md hover:bg-opacity-90 disabled:opacity-50 font-primary font-semibold"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Request Loan
+              </button>
+          )}
+        </div>
+
+        {/* New Search Bar */}
+        <div className="mb-4 flex items-center max-w-md">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={loansSearch}
+              onChange={e => setLoansSearch(e.target.value)}
+              placeholder="Search loans..."
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="absolute left-3 top-2.5 text-gray-400">
+              <Search className="h-5 w-5" />
+            </span>
+            {loansSearch && (
+              <button
+                type="button"
+                onClick={() => setLoansSearch('')}
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                aria-label="Clear search"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Custom Filter Section */}
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Filter Dropdowns */}
+            {(currentUser.role === 'admin' || currentUser.role === 'staff') && (
+              <div className="min-w-0 flex-1 lg:flex-none lg:w-48">
+                <select
+                  value={loanFilterBorrower}
+                  onChange={(e) => setLoanFilterBorrower(e.target.value)}
+                  className="block w-full py-3 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                >
+                  <option value="all">All Borrowers</option>
+                  {users.map(user => (
+                    <option key={user.id} value={user.id}>{user.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="min-w-0 flex-1 lg:flex-none lg:w-40">
+              <select
+                value={loanFilterStatus}
+                onChange={(e) => setLoanFilterStatus(e.target.value)}
+                className="block w-full py-3 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="active">Active</option>
+                <option value="returned">Returned</option>
+                <option value="denied">Denied</option>
+              </select>
+            </div>
+          </div>
+          {/* Search Results Summary */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <p className="text-sm text-gray-600">
+              Showing <span className="font-semibold text-gray-900">{filteredLoans.length}</span> of <span className="font-semibold text-gray-900">{loans.length}</span> loan records
+              {(loanFilterBorrower !== 'all' || loanFilterStatus !== 'all' || debouncedLoansSearch) && (
+                <span> with applied filters</span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {showRequestForm && <RequestForm />}
+
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loan #</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RCB Sticker</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Borrower</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expected Return</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approved By</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Returned By</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Return Inspection</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+                  {(currentUser.role === 'admin' || currentUser.role === 'staff') && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredLoans.map(loan => (
+                  <tr key={loan.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => openLoanDetails(loan)}
+                        className="text-gsu-blue hover:text-gsu-cool-blue font-semibold font-primary underline"
+                      >
+                        {loan.loan_number || `#${loan.id}`}
+                      </button>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium">{loan.asset_id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">{loan.rcb_sticker_number || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="font-medium">{loan.borrower_name}</div>
+                        {loan.panther_id && (
+                          <div className="text-sm text-gray-500">ID: {loan.panther_id}</div>
+                        )}
+                        {loan.user_type && (
+                          <div className="text-xs text-gray-500">{loan.user_type}</div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        loan.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        loan.status === 'active' ? 'bg-green-100 text-green-800' :
+                        loan.status === 'returned' ? 'bg-blue-100 text-blue-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {loan.status}
+                      </span>
+                      {loan.application_type === 'staff_created' && (
+                        <div className="text-xs text-purple-600 mt-1">Staff Created</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">{loan.type}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{loan.request_date || loan.checkout_date}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{loan.expected_return}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{loan.approved_by_name || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{loan.returned_by_name || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {loan.status === 'returned' && loan.return_inspection ? (
+                        <div className="flex items-center space-x-1">
+                          <span className={`w-2 h-2 rounded-full ${
+                            loan.return_inspection.return_condition === 'excellent' ? 'bg-green-500' :
+                            loan.return_inspection.return_condition === 'good' ? 'bg-yellow-500' :
+                            loan.return_inspection.return_condition === 'fair' ? 'bg-orange-500' :
+                            loan.return_inspection.return_condition === 'poor' || loan.return_inspection.return_condition === 'damaged' ? 'bg-red-500' :
+                            'bg-gray-400'
+                          }`}></span>
+                          <span className="text-xs text-gray-600 capitalize font-medium">
+                            {loan.return_inspection.return_condition || 'N/A'}
+                          </span>
+                          {loan.return_inspection.physical_damage && (
+                            <span className="text-xs text-red-600 font-medium">⚠️</span>
+                          )}
+                        </div>
+                      ) : loan.status === 'returned' ? (
+                        <span className="text-xs text-gray-400">No details</span>
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 max-w-xs truncate">{loan.reason}</td>
+                    {(currentUser.role === 'admin' || currentUser.role === 'staff') && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        {loan.status === 'pending' && currentUser.role === 'admin' && (
+                          <div className="space-x-2">
+                            <button
+                              onClick={() => approveLoan(loan.id)}
+                              disabled={loading}
+                              className="text-green-600 hover:text-green-800 disabled:opacity-50 font-medium"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => denyLoan(loan.id)}
+                              disabled={loading}
+                              className="text-robinson-red hover:text-robinson-red hover:opacity-80 disabled:opacity-50 font-medium font-primary"
+                            >
+                              Deny
+                            </button>
+                          </div>
+                        )}
+                        {loan.status === 'pending' && currentUser.role === 'staff' && (
+                          <span className="text-gray-500 text-xs">Admin Only</span>
+                        )}
+                        {loan.status === 'active' && (
+                          <button
+                            onClick={() => {
+                              setReturnLoanData(loan);
+                              setShowReturnModal(true);
+                            }}
+                            disabled={loading}
+                            className="text-robinson-blue hover:text-robinson-blue hover:opacity-80 disabled:opacity-50 font-medium font-primary"
+                          >
+                            Return
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <ReturnConfirmationModal
+          isOpen={showReturnModal}
+          onClose={() => {
+            setShowReturnModal(false);
+            setReturnLoanData(null);
+          }}
+          loan={returnLoanData}
+        />
+
+        <LoanDetailsModal
+          isOpen={showLoanDetailsModal}
+          onClose={() => {
+            setShowLoanDetailsModal(false);
+            setSelectedLoan(null);
+          }}
+          loan={selectedLoan}
+        />
+      </div>
+    );
+  };
   const LoanerApplicationForm = () => {
     return (<div>Return Confirmation Modal</div>);
   }
