@@ -1,6 +1,6 @@
 import './App.css';
 import {useState, useEffect, useCallback} from 'react';
-import {Menu, Edit, CheckCircle, Clock, AlertTriangle, Wrench, X, Settings, Search, FileText, Laptop, User, Plus, UserPlus} from 'lucide-react';
+import {Upload, Trash2, Menu, Edit, CheckCircle, Clock, AlertTriangle, Wrench, X, Settings, Search, FileText, Laptop, User, Plus, UserPlus} from 'lucide-react';
 import ApiService from './api';
 
 const InventoryManager = () => {
@@ -25,7 +25,11 @@ const InventoryManager = () => {
   const [loanFilterStatus, setLoanFilterStatus] = useState('all');
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [showLoanDetailsModal, setShowLoanDetailsModal] = useState(false);
-  
+  const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
+  const [maintenanceFormItem, setMaintenanceFormItem] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+
   const Modal = ({ isOpen, onClose, title, children }) => {
     if (!isOpen) return null;
 
@@ -57,6 +61,273 @@ const InventoryManager = () => {
                 {children}
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const MaintenanceFormModal = ({ isOpen, onClose, item }) => {
+    const [formData, setFormData] = useState({
+      item_id: item?.id || '',
+      asset_id: item?.asset_id || '',
+      issue_description: '',
+      technician_name: currentUser?.name || '',
+      cost: '',
+      status: 'pending',
+      resolution_notes: '',
+      parts_used: ''
+    });
+    const [inventorySearch, setInventorySearch] = useState(
+      item ? `${item.asset_id} - ${item.brand} ${item.model}` : ''
+    );
+    const [showSearchResults, setShowSearchResults] = useState(false);
+    const [searchResults, setSearchResults] = useState([]);
+    const [selectedItem, setSelectedItem] = useState(item || null);
+
+    // Search inventory items
+    const searchInventoryItems = (searchTerm) => {
+      if (searchTerm.length < 2) {
+        setSearchResults([]);
+        setShowSearchResults(false);
+        return;
+      }
+
+      const results = items.filter(inventoryItem => {
+        const searchText = searchTerm.toLowerCase();
+        return (
+          inventoryItem.asset_id.toLowerCase().includes(searchText) ||
+          inventoryItem.brand.toLowerCase().includes(searchText) ||
+          inventoryItem.model.toLowerCase().includes(searchText) ||
+          inventoryItem.type.toLowerCase().includes(searchText) ||
+          (inventoryItem.rcb_sticker_number && inventoryItem.rcb_sticker_number.toLowerCase().includes(searchText))
+        );
+      }).slice(0, 10);
+
+      setSearchResults(results);
+      setShowSearchResults(results.length > 0);
+    };
+
+    // Select an item from search results
+    const selectInventoryItem = (inventoryItem) => {
+      setSelectedItem(inventoryItem);
+      setFormData({
+        ...formData,
+        item_id: inventoryItem.id,
+        asset_id: inventoryItem.asset_id
+      });
+      setInventorySearch(`${inventoryItem.asset_id} - ${inventoryItem.brand} ${inventoryItem.model}`);
+      setShowSearchResults(false);
+    };
+
+    const handleSubmit = async () => {
+      if (!formData.asset_id || !formData.item_id) {
+        setError('Please select an equipment item from inventory');
+        return;
+      }
+      if (!formData.issue_description.trim()) {
+        setError('Issue description is required');
+        return;
+      }
+
+      try {
+        await createMaintenanceRecord({
+          item_id: formData.item_id,
+          asset_id: formData.asset_id,
+          issue_description: formData.issue_description,
+          technician_name: formData.technician_name,
+          cost: formData.cost || 0,
+          status: formData.status,
+          resolution_notes: formData.resolution_notes,
+          parts_used: formData.parts_used
+        });
+        onClose();
+        // Reset form
+        setFormData({
+          item_id: '',
+          asset_id: '',
+          issue_description: '',
+          technician_name: currentUser?.name || '',
+          cost: '',
+          status: 'pending',
+          resolution_notes: '',
+          parts_used: ''
+        });
+        setSelectedItem(null);
+        setInventorySearch('');
+      } catch (error) {
+        // Error is already handled in createMaintenanceRecord
+      }
+    };
+
+    if (!isOpen) return null;
+
+          return (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-orange-600 to-orange-700 px-6 py-4">
+              <h3 className="text-xl font-bold text-white font-secondary">
+                New Maintenance Record
+              </h3>
+              {selectedItem ? (
+                <p className="text-orange-100 font-primary">
+                  Asset: {selectedItem.asset_id} - {selectedItem.brand} {selectedItem.model}
+                </p>
+              ) : (
+                <p className="text-orange-100 font-primary">
+                  Search and select equipment from inventory
+                </p>
+              )}
+            </div>
+            
+            {/* Content */}
+            <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-160px)]">
+              {/* Equipment Search */}
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Asset ID *</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={inventorySearch}
+                    onChange={(e) => {
+                      setInventorySearch(e.target.value);
+                      searchInventoryItems(e.target.value);
+                    }}
+                    className="w-full px-4 py-3 pr-10 border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-primary"
+                    placeholder="Search by Asset ID, Brand, Model, Type, or RCB Sticker..."
+                    required
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                    <Search className="h-5 w-5 text-orange-400" />
+                  </div>
+                </div>
+                
+                {/* Search Results Dropdown */}
+                {showSearchResults && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {searchResults.map((inventoryItem) => (
+                      <div
+                        key={inventoryItem.id}
+                        onClick={() => selectInventoryItem(inventoryItem)}
+                        className="px-4 py-3 hover:bg-orange-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-semibold text-gray-900 font-primary">
+                              {inventoryItem.asset_id}
+                            </div>
+                            <div className="text-sm text-gray-600 font-primary">
+                              {inventoryItem.brand} {inventoryItem.model} ({inventoryItem.type})
+                            </div>
+                            {inventoryItem.rcb_sticker_number && (
+                              <div className="text-xs text-blue-600 font-primary">
+                                RCB: {inventoryItem.rcb_sticker_number}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <span className={`px-2 py-1 text-xs rounded-full font-primary ${
+                              inventoryItem.status === 'available' ? 'bg-green-100 text-green-800' :
+                              inventoryItem.status === 'on_loan' ? 'bg-blue-100 text-blue-800' :
+                              inventoryItem.status === 'maintenance' ? 'bg-orange-100 text-orange-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {inventoryItem.status}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Technician Name *</label>
+                <input
+                  type="text"
+                  value={formData.technician_name}
+                  onChange={(e) => setFormData({...formData, technician_name: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Estimated Cost ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.cost}
+                  onChange={(e) => setFormData({...formData, cost: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Status *</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({...formData, status: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Parts Needed/Used</label>
+                <input
+                  type="text"
+                  value={formData.parts_used}
+                  onChange={(e) => setFormData({...formData, parts_used: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                  placeholder="List parts..."
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Issue Description *</label>
+              <textarea
+                value={formData.issue_description}
+                onChange={(e) => setFormData({...formData, issue_description: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                rows="3"
+                required
+                placeholder="Describe the issue or maintenance needed..."
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Resolution Notes</label>
+              <textarea
+                value={formData.resolution_notes}
+                onChange={(e) => setFormData({...formData, resolution_notes: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                rows="3"
+                placeholder="Describe the solution or work performed..."
+              />
+            </div>
+          </div>
+          
+          {/* Footer */}
+          <div className="bg-gray-50 px-6 py-4 border-t flex justify-end space-x-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 font-primary font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !selectedItem}
+              className="px-6 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 font-primary font-semibold"
+            >
+              {loading ? 'Creating...' : 'Create Record'}
+            </button>
           </div>
         </div>
       </div>
@@ -378,7 +649,134 @@ const InventoryManager = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
+  const addItem = async (newItem) => {
+    try {
+      setLoading(true);
+      const itemData = {
+        asset_id: newItem.assetId,
+        rcb_sticker_number: newItem.rcbStickerNumber,
+        type: newItem.type,
+        category_id: newItem.categoryId,
+        brand: newItem.brand,
+        model: newItem.model,
+        serial_number: newItem.serialNumber,
+        purchase_date: newItem.purchaseDate,
+        purchase_price: newItem.purchasePrice,
+        warranty_expiry: newItem.warrantyExpiry,
+        condition: newItem.condition,
+        location_id: newItem.locationId,
+        notes: newItem.notes,
+        specifications: newItem.specifications,
+        parts_used: newItem.partsUsed,
+        can_leave_building: newItem.canLeaveBuilding !== undefined ? newItem.canLeaveBuilding : 1
+      };
+      
+      await ApiService.createItem(itemData);
+      await loadItems();
+      await loadAvailableItems();
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Failed to add item:', error);
+      setError('Failed to add item: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteItem = async (id) => {
+    try {
+      setLoading(true);
+      await ApiService.deleteItem(id);
+      await loadItems();
+      await loadAvailableItems();
+      await loadDashboardStats();
+    } catch (error) {
+      console.error('Failed to delete item:', error);
+      setError('Failed to delete item: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
   
+  const markItemForMaintenance = async (itemId) => {
+    try {
+      const item = items.find(i => i.id === itemId);
+      if (!item) {
+        throw new Error('Item not found');
+      }
+      
+      // Open maintenance form popup with item data
+      setMaintenanceFormItem(item);
+      setShowMaintenanceForm(true);
+    } catch (error) {
+      console.error('Failed to open maintenance form:', error);
+      setError('Failed to open maintenance form: ' + error.message);
+    }
+  };
+
+  const createMaintenanceRecord = async (recordData) => {
+    try {
+      setLoading(true);
+      
+      // Create maintenance record
+      const newRecord = {
+        id: Date.now(),
+        item_id: recordData.item_id,
+        asset_id: recordData.asset_id,
+        issue_description: recordData.issue_description,
+        technician_name: recordData.technician_name,
+        cost: recordData.cost || 0,
+        status: recordData.status || 'pending',
+        resolution_notes: recordData.resolution_notes || '',
+        parts_used: recordData.parts_used || '',
+        maintenance_date: new Date().toISOString().split('T')[0]
+      };
+      
+      // Add to maintenance records
+      setMaintenanceRecords(prev => [...prev, newRecord]);
+      
+      // Update item status based on maintenance record status
+      const item = items.find(i => i.id === recordData.item_id);
+      if (item) {
+        const updatedItemData = {
+          assetId: item.asset_id,
+          rcbStickerNumber: item.rcb_sticker_number,
+          type: item.type,
+          categoryId: item.category_id,
+          brand: item.brand,
+          model: item.model,
+          serialNumber: item.serial_number,
+          purchaseDate: item.purchase_date,
+          purchasePrice: item.purchase_price,
+          warrantyExpiry: item.warranty_expiry,
+          condition: item.condition,
+          locationId: item.location_id,
+          notes: item.notes,
+          specifications: item.specifications,
+          partsUsed: item.parts_used,
+          canLeaveBuilding: item.can_leave_building,
+          // If maintenance is created as completed, mark item as available, otherwise maintenance
+          status: newRecord.status === 'completed' ? 'available' : 'maintenance'
+        };
+        
+        await updateItem(recordData.item_id, updatedItemData);
+      }
+      
+      // Reload dashboard stats to reflect maintenance count
+      await loadDashboardStats();
+      
+      const statusMessage = newRecord.status === 'completed' 
+        ? 'Maintenance record created successfully - Item automatically marked as available' 
+        : 'Maintenance record created successfully';
+      setError(statusMessage);
+    } catch (error) {
+      console.error('Failed to create maintenance record:', error);
+      setError('Failed to create maintenance record: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const updateItem = async (id, updatedItem) => {
     try {
       setLoading(true);
@@ -413,7 +811,43 @@ const InventoryManager = () => {
       setLoading(false);
     }
   };
-  
+  const getItemTypes = () => {
+    const types = [...new Set(items.map(item => item.type))];
+    return types.sort();
+  };
+  const importItems = async (file) => {
+    try {
+      setLoading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('http://localhost:5000/api/items/import', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Import failed');
+      }
+
+      const result = await response.json();
+      await loadItems();
+      await loadAvailableItems();
+      await loadDashboardStats();
+      
+      setError(`Import completed: ${result.imported} items imported, ${result.errors.length} errors`);
+    } catch (error) {
+      console.error('Failed to import items:', error);
+      setError('Failed to import items: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const LoansModal = ({ loans, title }) => (
     <div>
       <div className="mb-4">
@@ -1689,8 +2123,547 @@ const InventoryManager = () => {
     );
   };
   const InventoryManagement = () => {
-    return (<div>Return Confirmation Modal</div>);
-  }
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [editingItem, setEditingItem] = useState(null);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [inventorySearch, setInventorySearch] = useState('');
+    const [debouncedInventorySearch, setDebouncedInventorySearch] = useState('');
+
+    // Debounce inventory search
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedInventorySearch(inventorySearch);
+      }, 300);
+      return () => clearTimeout(handler);
+    }, [inventorySearch]);
+
+    // Updated filter logic to use debouncedInventorySearch
+    const filteredItems = items.filter(item => {
+      const searchText = debouncedInventorySearch.trim().toLowerCase();
+      const fields = [
+        item.asset_id,
+        item.type,
+        item.brand,
+        item.model,
+        item.serial_number,
+        item.rcb_sticker_number,
+        item.location_name,
+        item.notes,
+        item.specifications
+      ];
+      const matchesSearch = !searchText || fields.some(field =>
+        field && field.toString().toLowerCase().includes(searchText)
+      );
+      const matchesStatusFilter = filterStatus === 'all' || item.status === filterStatus;
+      const matchesTypeFilter = filterType === 'all' || item.type === filterType;
+      return matchesSearch && matchesStatusFilter && matchesTypeFilter;
+    });
+    const itemTypes = getItemTypes();
+
+    const ItemForm = ({ item, onSave, onCancel }) => {
+      const [formData, setFormData] = useState(item || {
+        assetId: '',
+        rcbStickerNumber: '',
+        type: 'Laptop',
+        categoryId: 1,
+        brand: '',
+        model: '',
+        serialNumber: '',
+        purchaseDate: '',
+        purchasePrice: '',
+        warrantyExpiry: '',
+        condition: 'excellent',
+        locationId: 1,
+        notes: '',
+        specifications: '',
+        partsUsed: '',
+        canLeaveBuilding: false
+      });
+
+      const handleSubmit = async () => {
+        try {
+          await onSave(formData);
+          onCancel();
+        } catch (error) {
+          // Error is already handled in the parent functions
+        }
+      };
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold mb-4">{item ? 'Edit Item' : 'Add New Item'}</h3>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Asset ID *</label>
+                <input
+                  type="text"
+                  value={formData.assetId || formData.asset_id || ''}
+                  onChange={(e) => setFormData({...formData, assetId: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">RCB Sticker Number</label>
+                <input
+                  type="text"
+                  value={formData.rcbStickerNumber || formData.rcb_sticker_number || ''}
+                  onChange={(e) => setFormData({...formData, rcbStickerNumber: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Type *</label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData({...formData, type: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="Laptop">Laptop</option>
+                  <option value="Monitor">Monitor</option>
+                  <option value="Charger">Charger</option>
+                  <option value="Adapter">Adapter</option>
+                  <option value="Tablet">Tablet</option>
+                  <option value="Webcam">Webcam</option>
+                  <option value="Clickers">Clickers</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Category</label>
+                <select
+                  value={formData.categoryId || formData.category_id || 1}
+                  onChange={(e) => setFormData({...formData, categoryId: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Brand *</label>
+                <input
+                  type="text"
+                  value={formData.brand}
+                  onChange={(e) => setFormData({...formData, brand: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Model *</label>
+                <input
+                  type="text"
+                  value={formData.model}
+                  onChange={(e) => setFormData({...formData, model: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Serial Number *</label>
+                <input
+                  type="text"
+                  value={formData.serialNumber || formData.serial_number || ''}
+                  onChange={(e) => setFormData({...formData, serialNumber: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Purchase Date</label>
+                <input
+                  type="date"
+                  value={formData.purchaseDate || formData.purchase_date || ''}
+                  onChange={(e) => setFormData({...formData, purchaseDate: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Purchase Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.purchasePrice || formData.purchase_price || ''}
+                  onChange={(e) => setFormData({...formData, purchasePrice: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Warranty Expiry</label>
+                <input
+                  type="date"
+                  value={formData.warrantyExpiry || formData.warranty_expiry || ''}
+                  onChange={(e) => setFormData({...formData, warrantyExpiry: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Condition</label>
+                <select
+                  value={formData.condition}
+                  onChange={(e) => setFormData({...formData, condition: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="excellent">Excellent</option>
+                  <option value="good">Good</option>
+                  <option value="fair">Fair</option>
+                  <option value="poor">Poor</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Location</label>
+                <select
+                  value={formData.locationId || formData.location_id || 1}
+                  onChange={(e) => setFormData({...formData, locationId: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  {locations.map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Specifications</label>
+              <textarea
+                value={formData.specifications || ''}
+                onChange={(e) => setFormData({...formData, specifications: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                rows="2"
+                placeholder="Technical specifications..."
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Parts Used</label>
+              <textarea
+                value={formData.partsUsed || formData.parts_used || ''}
+                onChange={(e) => setFormData({...formData, partsUsed: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                rows="2"
+                placeholder="Parts and accessories included..."
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">Notes</label>
+              <textarea
+                value={formData.notes || ''}
+                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                rows="2"
+                placeholder="Additional notes..."
+              />
+            </div>
+            
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={!formData.canLeaveBuilding}
+                  onChange={(e) => setFormData({...formData, canLeaveBuilding: !e.target.checked})}
+                  id="cannotLeaveBuilding"
+                />
+                <label htmlFor="cannotLeaveBuilding" className="text-sm font-medium text-yellow-800">
+                  🏢 Cannot leave Buckhead Center Building (Default: Checked)
+                </label>
+              </div>
+              <p className="text-xs text-yellow-700 mt-1">
+                Check this box for equipment that must remain on campus premises at all times
+              </p>
+            </div>
+            
+            <div className="flex space-x-2 pt-4">
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+              >
+                {loading ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const ImportModal = () => {
+      const [file, setFile] = useState(null);
+
+      const handleFileSelect = (e) => {
+        setFile(e.target.files[0]);
+      };
+
+      const handleImport = async () => {
+        if (file) {
+          await importItems(file);
+          setShowImportModal(false);
+          setFile(null);
+        }
+      };
+
+      return (
+        <Modal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          title="Import Items from Excel"
+        >
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-600 mb-4">
+                Upload an Excel file with columns: Asset ID, RCB Sticker Number, Type, Brand, Model, Serial Number, Purchase Date, Purchase Price, Condition, Notes, Specifications, Parts Used
+              </p>
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileSelect}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={handleImport}
+                disabled={!file || loading}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+              >
+                {loading ? 'Importing...' : 'Import'}
+              </button>
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
+      );
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold font-secondary tracking-tight">INVENTORY MANAGEMENT</h2>
+          {(currentUser.role === 'admin' || currentUser.role === 'staff') && (
+            <div className="space-x-2">
+              <button
+                onClick={() => setShowImportModal(true)}
+                disabled={loading}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-opacity-90 disabled:opacity-50 font-semibold font-primary"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import Excel
+              </button>
+              <button
+                onClick={() => setShowAddForm(true)}
+                disabled={loading}
+                className="flex items-center px-4 py-2 bg-gsu-blue text-white rounded-md hover:bg-opacity-90 disabled:opacity-50 font-semibold font-primary"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Item
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* New Search Bar */}
+        <div className="mb-4 flex items-center max-w-md">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={inventorySearch}
+              onChange={e => setInventorySearch(e.target.value)}
+              placeholder="Search inventory..."
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="absolute left-3 top-2.5 text-gray-400">
+              <Search className="h-5 w-5" />
+            </span>
+            {inventorySearch && (
+              <button
+                type="button"
+                onClick={() => setInventorySearch('')}
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                aria-label="Clear search"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Custom Filter Section */}
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Filter Dropdowns */}
+            <div className="min-w-0 flex-1 lg:flex-none lg:w-40">
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="block w-full py-3 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              >
+                <option value="all">All Status</option>
+                <option value="available">Available</option>
+                <option value="loaned">On Loan</option>
+                <option value="maintenance">Maintenance</option>
+                <option value="faulty">Faulty</option>
+              </select>
+            </div>
+            <div className="min-w-0 flex-1 lg:flex-none lg:w-40">
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="block w-full py-3 px-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              >
+                <option value="all">All Types</option>
+                {itemTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {/* Search Results Summary */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <p className="text-sm text-gray-600">
+              Showing <span className="font-semibold text-gray-900">{filteredItems.length}</span> of <span className="font-semibold text-gray-900">{items.length}</span> items
+              {(filterStatus !== 'all' || filterType !== 'all' || debouncedInventorySearch) && (
+                <span> with applied filters</span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {showAddForm && (
+          <ItemForm
+            onSave={addItem}
+            onCancel={() => setShowAddForm(false)}
+          />
+        )}
+
+        {editingItem && (
+          <ItemForm
+            item={editingItem}
+            onSave={(updatedItem) => updateItem(editingItem.id, updatedItem)}
+            onCancel={() => setEditingItem(null)}
+          />
+        )}
+
+        <ImportModal />
+
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RCB Sticker</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand/Model</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Condition</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                  {(currentUser.role === 'admin' || currentUser.role === 'staff') && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredItems.map(item => (
+                  <tr key={item.id}>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium">{item.asset_id}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">{item.rcb_sticker_number || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{item.type}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{item.brand} {item.model}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        item.status === 'available' ? 'bg-green-100 text-green-800' :
+                        item.status === 'loaned' ? 'bg-yellow-100 text-yellow-800' :
+                        item.status === 'maintenance' ? 'bg-blue-100 text-blue-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap capitalize">{item.condition}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        {item.location_name}
+                        {!item.can_leave_building && (
+                          <div className="text-xs text-red-600">No exit</div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {item.purchase_price ? `$${item.purchase_price}` : 'N/A'}
+                    </td>
+                    {(currentUser.role === 'admin' || currentUser.role === 'staff') && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => setEditingItem(item)}
+                            disabled={loading}
+                            className="text-blue-600 hover:text-blue-900 disabled:opacity-50"
+                            title="Edit Item"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          {item.status === 'available' && (
+                            <button
+                              onClick={() => markItemForMaintenance(item.id)}
+                              disabled={loading}
+                              className="text-orange-600 hover:text-orange-900 disabled:opacity-50"
+                              title="Mark for Maintenance"
+                            >
+                              <Wrench className="h-4 w-4" />
+                            </button>
+                          )}
+                          {currentUser.role === 'admin' && (
+                            <button
+                              onClick={() => deleteItem(item.id)}
+                              disabled={loading}
+                              className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                              title="Delete Item"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Maintenance Form Modal */}
+        <MaintenanceFormModal
+          isOpen={showMaintenanceForm}
+          onClose={() => {
+            setShowMaintenanceForm(false);
+            setMaintenanceFormItem(null);
+          }}
+          item={maintenanceFormItem}
+        />
+      </div>
+    );
+  };
+
+  //Loan Management Component
+
   const LoanManagement = () => {
     const [showRequestForm, setShowRequestForm] = useState(false);
     const [loansSearch, setLoansSearch] = useState('');
@@ -1911,6 +2884,8 @@ const InventoryManager = () => {
     }
   };
 
+  
+
   const importItems = async (file) => {
     try {
       setLoading(true);
@@ -2043,7 +3018,6 @@ const InventoryManager = () => {
         </div>
       );
     };
-
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
