@@ -968,6 +968,8 @@ const InventoryManager = () => {
 	setShowLoanDetailsModal(true);
   };
   
+  
+
     // Loan Details Modal
   const LoanDetailsModal = ({ isOpen, onClose, loan }) => {
     if (!isOpen || !loan) return null;
@@ -1468,7 +1470,7 @@ const InventoryManager = () => {
       </div>
     );
   };
-  
+
   const ErrorDisplay = () => {
     if (!error) return null;
     return (
@@ -3257,10 +3259,477 @@ const InventoryManager = () => {
       </div>
     );
   };
-  const LoanerApplicationForm = () => {
-    return (<div>Return Confirmation Modal</div>);
-  }
+
   const MaintenanceRecords = () => {
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [editingRecord, setEditingRecord] = useState(null);
+    const [maintenanceSearch, setMaintenanceSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [inventorySearchTerm, setInventorySearchTerm] = useState('');
+    const [inventorySearchResults, setInventorySearchResults] = useState([]);
+    const [showInventorySearch, setShowInventorySearch] = useState(false);
+
+    const filteredRecords = maintenanceRecords.filter(record => {
+      const searchText = maintenanceSearch.toLowerCase();
+      const matchesSearch = !searchText || 
+        record.asset_id.toLowerCase().includes(searchText) ||
+        record.issue_description.toLowerCase().includes(searchText) ||
+        record.technician_name.toLowerCase().includes(searchText);
+      
+      const matchesStatus = statusFilter === 'all' || record.status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    });
+
+    // Search for inventory items
+    const searchInventoryItems = (searchTerm) => {
+      if (!searchTerm.trim()) {
+        setInventorySearchResults([]);
+        return;
+      }
+      
+      const results = items.filter(item => {
+        const search = searchTerm.toLowerCase();
+        return (
+          item.asset_id.toLowerCase().includes(search) ||
+          item.brand.toLowerCase().includes(search) ||
+          item.model.toLowerCase().includes(search) ||
+          item.type.toLowerCase().includes(search) ||
+          (item.rcb_sticker_number && item.rcb_sticker_number.toLowerCase().includes(search))
+        );
+      }).slice(0, 10); // Limit to 10 results
+      
+      setInventorySearchResults(results);
+    };
+
+    // Create maintenance record from inventory search
+    const createMaintenanceFromInventory = (item) => {
+      setMaintenanceFormItem(item);
+      setShowMaintenanceForm(true);
+      setShowInventorySearch(false);
+      setInventorySearchTerm('');
+      setInventorySearchResults([]);
+    };
+
+    const addMaintenanceRecord = async (recordData) => {
+      try {
+        // Use the global createMaintenanceRecord function to ensure proper syncing
+        await createMaintenanceRecord(recordData);
+      } catch (error) {
+        setError('Failed to add maintenance record: ' + error.message);
+      }
+    };
+
+    const updateMaintenanceRecord = async (id, recordData) => {
+      try {
+        setLoading(true);
+        
+        // Check if status is being changed to completed
+        const existingRecord = maintenanceRecords.find(record => record.id === id);
+        const isCompleted = recordData.status === 'completed';
+        
+        // Update maintenance record
+        setMaintenanceRecords(maintenanceRecords.map(record => 
+          record.id === id ? { ...record, ...recordData } : record
+        ));
+        
+        // If maintenance is completed, automatically mark item as available
+        if (isCompleted && existingRecord) {
+          const itemToUpdate = items.find(item => item.asset_id === existingRecord.asset_id);
+          if (itemToUpdate && itemToUpdate.status === 'maintenance') {
+            const updatedItemData = {
+              assetId: itemToUpdate.asset_id,
+              rcbStickerNumber: itemToUpdate.rcb_sticker_number,
+              type: itemToUpdate.type,
+              categoryId: itemToUpdate.category_id,
+              brand: itemToUpdate.brand,
+              model: itemToUpdate.model,
+              serialNumber: itemToUpdate.serial_number,
+              purchaseDate: itemToUpdate.purchase_date,
+              purchasePrice: itemToUpdate.purchase_price,
+              warrantyExpiry: itemToUpdate.warranty_expiry,
+              condition: itemToUpdate.condition,
+              locationId: itemToUpdate.location_id,
+              notes: itemToUpdate.notes,
+              specifications: itemToUpdate.specifications,
+              partsUsed: itemToUpdate.parts_used,
+              canLeaveBuilding: itemToUpdate.can_leave_building,
+              status: 'available'
+            };
+            
+            await updateItem(itemToUpdate.id, updatedItemData);
+          }
+        }
+        
+        setError('Maintenance record updated successfully' + (isCompleted ? ' - Item automatically marked as available' : ''));
+      } catch (error) {
+        setError('Failed to update maintenance record: ' + error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const MaintenanceForm = ({ record, onSave, onCancel }) => {
+      const [formData, setFormData] = useState(record || {
+        asset_id: '',
+        issue_description: '',
+        technician_name: currentUser?.name || '',
+        cost: '',
+        status: 'pending',
+        resolution_notes: '',
+        parts_used: ''
+      });
+
+      const handleSubmit = async () => {
+        try {
+          await onSave(formData);
+          onCancel();
+        } catch (error) {
+          // Error is already handled in parent function
+        }
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-orange-600 to-orange-700 px-6 py-4">
+              <h3 className="text-xl font-bold text-white font-secondary">
+                {record ? 'Edit Maintenance Record' : 'New Maintenance Record'}
+              </h3>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Asset ID *</label>
+                  <input
+                    type="text"
+                    value={formData.asset_id}
+                    onChange={(e) => setFormData({...formData, asset_id: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                    required
+                    placeholder="GSU-LAP-001"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Technician Name *</label>
+                  <input
+                    type="text"
+                    value={formData.technician_name}
+                    onChange={(e) => setFormData({...formData, technician_name: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Cost ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.cost}
+                    onChange={(e) => setFormData({...formData, cost: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Status *</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({...formData, status: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Issue Description *</label>
+                <textarea
+                  value={formData.issue_description}
+                  onChange={(e) => setFormData({...formData, issue_description: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                  rows="3"
+                  required
+                  placeholder="Describe the issue..."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Resolution Notes</label>
+                <textarea
+                  value={formData.resolution_notes}
+                  onChange={(e) => setFormData({...formData, resolution_notes: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                  rows="3"
+                  placeholder="Describe the solution..."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 font-primary">Parts Used</label>
+                <input
+                  type="text"
+                  value={formData.parts_used}
+                  onChange={(e) => setFormData({...formData, parts_used: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                  placeholder="List parts used..."
+                />
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t flex justify-end space-x-3">
+              <button
+                onClick={onCancel}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 font-primary font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="px-6 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 font-primary font-semibold"
+              >
+                {loading ? 'Saving...' : (record ? 'Update Record' : 'Create Record')}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const getStatusColor = (status) => {
+      switch (status) {
+        case 'completed': return 'bg-green-100 text-green-800';
+        case 'in_progress': return 'bg-blue-100 text-blue-800';
+        case 'pending': return 'bg-yellow-100 text-yellow-800';
+        case 'cancelled': return 'bg-red-100 text-red-800';
+        default: return 'bg-gray-100 text-gray-800';
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gsu-light-blue to-gray-100">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
+            <div className="bg-gradient-to-r from-orange-600 to-orange-700 px-8 py-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-3xl font-bold text-white font-secondary">
+                    Maintenance Records
+                  </h1>
+                  <p className="text-orange-100 font-primary">
+                    Track equipment maintenance and repairs
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setMaintenanceFormItem(null);
+                    setShowMaintenanceForm(true);
+                  }}
+                  className="flex items-center px-6 py-3 bg-white text-orange-600 rounded-md hover:bg-gray-50 font-primary font-semibold shadow-md"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  New Record
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Filters and Search */}
+          <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <div className="flex flex-col space-y-4">
+              {/* Maintenance Records Search */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+                <div className="flex items-center space-x-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={maintenanceSearch}
+                      onChange={(e) => setMaintenanceSearch(e.target.value)}
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                      placeholder="Search maintenance records..."
+                    />
+                  </div>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Inventory Search */}
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">
+                  Create Maintenance Record from Inventory
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={inventorySearchTerm}
+                    onChange={(e) => {
+                      setInventorySearchTerm(e.target.value);
+                      searchInventoryItems(e.target.value);
+                      setShowInventorySearch(e.target.value.length > 0);
+                    }}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 font-primary"
+                    placeholder="Search inventory by Asset ID, Brand, Model, or Type..."
+                  />
+                  
+                  {/* Inventory Search Results */}
+                  {showInventorySearch && inventorySearchResults.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {inventorySearchResults.map(item => (
+                        <div
+                          key={item.id}
+                          onClick={() => createMaintenanceFromInventory(item)}
+                          className="px-4 py-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-medium text-gray-900 font-primary">{item.asset_id}</p>
+                              <p className="text-sm text-gray-600 font-primary">
+                                {item.brand} {item.model} - {item.type}
+                              </p>
+                              {item.rcb_sticker_number && (
+                                <p className="text-xs text-blue-600 font-primary">
+                                  RCB: {item.rcb_sticker_number}
+                                </p>
+                              )}
+                            </div>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              item.status === 'available' ? 'bg-green-100 text-green-800' :
+                              item.status === 'loaned' ? 'bg-yellow-100 text-yellow-800' :
+                              item.status === 'maintenance' ? 'bg-blue-100 text-blue-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {showInventorySearch && inventorySearchTerm && inventorySearchResults.length === 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
+                      <div className="px-4 py-3 text-gray-500 text-center font-primary">
+                        No inventory items found matching "{inventorySearchTerm}"
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Records Table */}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Asset ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Issue</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Technician</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Cost</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredRecords.map(record => (
+                    <tr key={record.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900 font-primary">{record.asset_id}</td>
+                      <td className="px-6 py-4 text-gray-900 font-primary">
+                        <div className="max-w-xs truncate" title={record.issue_description}>
+                          {record.issue_description}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-900 font-primary">{record.technician_name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-900 font-primary">{record.maintenance_date}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-900 font-primary">
+                        {record.cost ? `$${parseFloat(record.cost).toFixed(2)}` : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(record.status)} font-primary`}>
+                          {record.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => setEditingRecord(record)}
+                            className="text-orange-600 hover:text-orange-900"
+                            title="Edit Record"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredRecords.length === 0 && (
+                    <tr>
+                      <td colSpan="7" className="px-6 py-8 text-center text-gray-500 font-primary">
+                        No maintenance records found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Forms */}
+          {showAddForm && (
+            <MaintenanceForm
+              onSave={addMaintenanceRecord}
+              onCancel={() => setShowAddForm(false)}
+            />
+          )}
+
+          {editingRecord && (
+            <MaintenanceForm
+              record={editingRecord}
+              onSave={(data) => updateMaintenanceRecord(editingRecord.id, data)}
+              onCancel={() => setEditingRecord(null)}
+            />
+          )}
+
+          {/* Maintenance Form Modal for Inventory Items */}
+          <MaintenanceFormModal
+            isOpen={showMaintenanceForm}
+            onClose={() => {
+              setShowMaintenanceForm(false);
+              setMaintenanceFormItem(null);
+            }}
+            item={maintenanceFormItem}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const LoanerApplicationForm = () => {
     return (<div>Return Confirmation Modal</div>);
   }
   const Reports = () => {
