@@ -135,6 +135,37 @@ class ApiService {
       method: 'POST',
     });
   }
+
+  async createItem(itemData) {
+    return this.request('/items', {
+      method: 'POST',
+      body: JSON.stringify(itemData),
+    });
+  }
+
+  async deleteItem(id) {
+    return this.request(`/items/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateItem(id, itemData) {
+    return this.request(`/items/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(itemData),
+    });
+  }
+
+  async returnItem(id, returnData = {}) {
+    return this.request(`/loans/${id}/return`, {
+      method: 'POST',
+      body: JSON.stringify(returnData),
+    });
+  }
+
+  
 }
+
+
 const apiService = new ApiService();
 export default apiService;
