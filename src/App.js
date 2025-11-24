@@ -1,6 +1,6 @@
 import './App.css';
 import {useState, useEffect, useCallback} from 'react';
-import {Upload, Trash2, Menu, Edit, CheckCircle, Clock, AlertTriangle, Wrench, X, Settings, Search, FileText, Laptop, User, Plus, UserPlus} from 'lucide-react';
+import {Download, Upload, Trash2, Menu, Edit, CheckCircle, Clock, AlertTriangle, Wrench, X, Settings, Search, FileText, Laptop, User, Plus, UserPlus} from 'lucide-react';
 import ApiService from './api';
 
 const InventoryManager = () => {
@@ -3733,12 +3733,210 @@ const InventoryManager = () => {
     return (<div>Return Confirmation Modal</div>);
   }
   const Reports = () => {
-    return (<div>Return Confirmation Modal</div>);
-  }
+    const generateReport = (type) => {
+      let data = [];
+      let filename = '';
+
+      switch (type) {
+        case 'inventory':
+          data = items.map(item => ({
+            'Asset ID': item.asset_id,
+            'RCB Sticker': item.rcb_sticker_number || '',
+            'Type': item.type,
+            'Brand': item.brand,
+            'Model': item.model,
+            'Serial Number': item.serial_number,
+            'Status': item.status,
+            'Condition': item.condition,
+            'Location': item.location_name,
+            'Purchase Price': item.purchase_price || 'N/A',
+            'Purchase Date': item.purchase_date || 'N/A',
+            'Warranty Expiry': item.warranty_expiry || 'N/A',
+            'Specifications': item.specifications || 'N/A',
+            'Parts Used': item.parts_used || 'N/A',
+            'Can Leave Building': item.can_leave_building ? 'Yes' : 'No',
+            'Notes': item.notes || 'N/A'
+          }));
+          filename = 'gsu_inventory_report.csv';
+          break;
+        case 'loans':
+          data = loans.map(loan => ({
+            'Asset ID': loan.asset_id,
+            'RCB Sticker': loan.rcb_sticker_number || '',
+            'Borrower': loan.borrower_name,
+            'Panther ID': loan.panther_id || '',
+            'User Type': loan.user_type || '',
+            'Status': loan.status,
+            'Application Type': loan.application_type,
+            'Request Date': loan.request_date || loan.checkout_date,
+            'Approved Date': loan.approved_date || 'N/A',
+            'Expected Return': loan.expected_return,
+            'Actual Return': loan.actual_return || 'N/A',
+            'Approved By': loan.approved_by_name || 'N/A',
+            'Returned By': loan.returned_by_name || 'N/A',
+            'Reason': loan.reason,
+            'Return Condition': loan.return_condition || 'N/A',
+            'Return Notes': loan.return_notes || 'N/A'
+          }));
+          filename = 'gsu_loans_report.csv';
+          break;
+        case 'overdue':
+          const overdueLoans = loans.filter(loan => {
+            if (loan.status !== 'active') return false;
+            const today = new Date();
+            const returnDate = new Date(loan.expected_return);
+            return today > returnDate;
+          });
+          data = overdueLoans.map(loan => ({
+            'Asset ID': loan.asset_id,
+            'RCB Sticker': loan.rcb_sticker_number || '',
+            'Borrower': loan.borrower_name,
+            'Panther ID': loan.panther_id || '',
+            'Checkout Date': loan.checkout_date,
+            'Expected Return': loan.expected_return,
+            'Days Overdue': Math.floor((new Date() - new Date(loan.expected_return)) / (1000 * 60 * 60 * 24)),
+            'Approved By': loan.approved_by_name || 'N/A',
+            'Reason': loan.reason
+          }));
+          filename = 'gsu_overdue_report.csv';
+          break;
+        case 'maintenance':
+          data = maintenanceRecords.map(record => ({
+            'Asset ID': record.asset_id,
+            'Issue Description': record.issue_description,
+            'Technician': record.technician_name,
+            'Date': record.maintenance_date,
+            'Status': record.status,
+            'Cost': record.cost ? `$${parseFloat(record.cost).toFixed(2)}` : '$0.00',
+            'Parts Used': record.parts_used || 'N/A',
+            'Resolution Notes': record.resolution_notes || 'N/A'
+          }));
+          filename = 'gsu_maintenance_report.csv';
+          break;
+        default:
+          return;
+      }
+
+      // Convert to CSV format
+      if (data.length > 0) {
+        const headers = Object.keys(data[0]).join(',');
+        const rows = data.map(row => Object.values(row).map(value => 
+          `"${String(value).replace(/"/g, '""')}"`
+        ).join(','));
+        const csv = [headers, ...rows].join('\n');
+        
+        // Create and download file
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    };
+
+    const overdueCount = loans.filter(loan => {
+      if (loan.status !== 'active') return false;
+      const today = new Date();
+      const returnDate = new Date(loan.expected_return);
+      return today > returnDate;
+    }).length;
+
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold font-secondary tracking-tight">REPORTS</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow-md flex flex-col h-full">
+            <h3 className="text-lg font-semibold mb-4 font-primary">Inventory Report</h3>
+            <p className="text-gray-600 mb-6 flex-grow font-primary">Complete list of all inventory items with current status and GSU details.</p>
+            <button
+              onClick={() => generateReport('inventory')}
+              className="flex items-center px-4 py-2 bg-robinson-blue text-white rounded-md hover:bg-opacity-90 font-primary"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV
+            </button>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-md flex flex-col h-full">
+            <h3 className="text-lg font-semibold mb-4 font-primary">Loans Report</h3>
+            <p className="text-gray-600 mb-6 flex-grow font-primary">All loan transactions including pending, active, and returned items with Panther IDs.</p>
+            <button
+              onClick={() => generateReport('loans')}
+              className="flex items-center px-4 py-2 bg-robinson-blue text-white rounded-md hover:bg-opacity-90 font-primary"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV
+            </button>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-md flex flex-col h-full">
+            <h3 className="text-lg font-semibold mb-4 font-primary">Overdue Items Report</h3>
+            <p className="text-gray-600 mb-4 flex-grow font-primary">Items past their expected return date with staff details and GSU information.</p>
+            <div className="flex items-center justify-between mb-4 p-3 bg-red-50 rounded-md">
+              <span className="text-2xl font-bold text-red-600 font-primary">{overdueCount}</span>
+              <span className="text-sm text-gray-500 font-primary">overdue items</span>
+            </div>
+            <button
+              onClick={() => generateReport('overdue')}
+              className="flex items-center px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 font-primary"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV
+            </button>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-md flex flex-col h-full">
+            <h3 className="text-lg font-semibold mb-4 font-primary">Maintenance Report</h3>
+            <p className="text-gray-600 mb-4 flex-grow font-primary">Complete maintenance history with costs, technicians, and repair details.</p>
+            <div className="flex items-center justify-between mb-4 p-3 bg-orange-50 rounded-md">
+              <span className="text-2xl font-bold text-orange-600 font-primary">{maintenanceRecords.length}</span>
+              <span className="text-sm text-gray-500 font-primary">maintenance records</span>
+            </div>
+            <button
+              onClick={() => generateReport('maintenance')}
+              className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 font-primary"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold mb-4 font-primary">Quick Stats</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-robinson-blue font-primary">{dashboardStats.totalItems || 0}</p>
+              <p className="text-sm text-gray-600 font-primary">Total Items</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-green-600 font-primary">{dashboardStats.availableItems || 0}</p>
+              <p className="text-sm text-gray-600 font-primary">Available</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-gsu-vibrant-blue font-primary">{dashboardStats.activeLoans || 0}</p>
+              <p className="text-sm text-gray-600 font-primary">Active Loans</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-gsu-red font-primary">{dashboardStats.pendingLoans || 0}</p>
+              <p className="text-sm text-gray-600 font-primary">Pending Requests</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-orange-600 font-primary">{maintenanceRecords.length}</p>
+              <p className="text-sm text-gray-600 font-primary">Maintenance Records</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
   const UserManagement = () => {
-    return (<div>Return Confirmation Modal</div>);
-  }
-  const InventoryManager = () => {
     return (<div>Return Confirmation Modal</div>);
   }
   // Dashboard Component
