@@ -220,6 +220,20 @@ app.post('/api/users/create-for-loaner', authenticateToken, requireRole(['admin'
   }
 });
 
+// Call register function
+app.post("/api/register", async (req, res) => {
+  try {
+    const { username, password, role } = req.body;
+
+    // your DB insert logic
+    // await db.run("INSERT INTO users ...", [username, password, role]);
+
+    res.status(200).json({ message: "User registered successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to register user" });
+  }
+});
+
 // Check if user exists by search term (admin/staff only)
 app.get('/api/users/check/:searchTerm', authenticateToken, requireRole(['admin', 'staff']), async (req, res) => {
   try {
