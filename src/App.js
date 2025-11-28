@@ -2921,35 +2921,34 @@ const InventoryManager = () => {
     }
   };
 
-	  const createLoanRequest = async (request) => {
-		try {
-		  setLoading(true);
-		  const loanData = {
-			item_id: parseInt(request.itemId),
-			expected_return: request.expectedReturn,
-			reason: request.reason,
-			loan_number: generateLoanNumber()
-		  };
-		  
-	  const generateLoanNumber = () => {
-		const currentYear = new Date().getFullYear();
-		const existingLoans = loans.filter(loan => 
-		  loan.loan_number && loan.loan_number.includes(currentYear.toString())
-		);
-		const nextNumber = String(existingLoans.length + 1).padStart(3, '0');
-		return `LOAN-${currentYear}-${nextNumber}`;
-	  };
-		  
+	// Main function to create loan request (handles staff and borrower)
+	const createLoanRequest = async (request) => {
+	  setLoading(true);
+	  setError('');
+
+	  try {
+		const loanData = {
+		  item_id: parseInt(request.itemId),
+		  expected_return: request.expectedReturn,
+		  reason: request.reason,
+		  loan_number: generateLoanNumber(),
+		};
+
+		if (currentUser?.role === 'staff') {
+		  await createStaffLoanRequest(loanData);
+		} else {
 		  await ApiService.createLoanRequest(loanData);
-		  await loadLoans();
-		  await loadDashboardStats();
-		} catch (error) {
-		  console.error('Failed to create loan request:', error);
-		  setError('Failed to create loan request: ' + error.message);
-		} finally {
-		  setLoading(false);
 		}
-	  };
+
+		await loadLoans();
+		await loadDashboardStats();
+	  } catch (error) {
+		console.error('Failed to create loan request:', error);
+		setError('Failed to create loan request: ' + (error.message || error));
+	  } finally {
+		setLoading(false);
+	  }
+	};
   
       return (
         <div className="bg-white p-6 rounded-lg shadow-md">
@@ -3259,6 +3258,91 @@ const InventoryManager = () => {
       </div>
     );
   };
+
+  	const generateLoanNumber = () => {
+	  const currentYear = new Date().getFullYear();
+	  const existingLoans = loans.filter(loan => 
+		loan.loan_number && loan.loan_number.includes(currentYear.toString())
+	  );
+	  const nextNumber = String(existingLoans.length + 1).padStart(3, '0');
+	  return `LOAN-${currentYear}-${nextNumber}`;
+	};
+  
+  	// Create user specifically for loaner applications
+	const createUserForLoanerApp = async (userData) => {
+	  try {
+		const newUserData = {
+		  username: userData.email?.split('@')[0] || userData.panther_id,
+		  password: 'TempGSU2024!', // Temporary password
+		  name: userData.name,
+		  email: userData.email,
+		  role: 'borrower',
+		  panther_id: userData.panther_id,
+		  phone: userData.phone,
+		  user_type: userData.user_type,
+		  created_by_staff: true,
+		  requires_password_reset: true,
+		};
+
+		const response = await fetch(
+		  'http://localhost:5000/api/users/create-for-loaner',
+		  {
+			method: 'POST',
+			headers: {
+			  'Content-Type': 'application/json',
+			  'Authorization': `Bearer ${localStorage.getItem('token')}`,
+			},
+			body: JSON.stringify(newUserData),
+		  }
+		);
+
+		if (!response.ok) {
+		  const error = await response.json();
+		  throw new Error(error.error || 'Failed to create user');
+		}
+
+		const result = await response.json();
+
+		// Reload users list if staff/admin
+		if (currentUser?.role === 'admin' || currentUser?.role === 'staff') {
+		  await loadUsers();
+		}
+
+		return result;
+	  } catch (error) {
+		console.error('Error creating user for loaner app:', error);
+		throw error;
+	  }
+	};
+
+	// Create loan request for staff (auto-approved)
+	const createStaffLoanRequest = async (loanData) => {
+	  try {
+		const loanNumber = generateLoanNumber();
+		const response = await fetch('http://localhost:5000/api/loans/staff-create', {
+		  method: 'POST',
+		  headers: {
+			'Content-Type': 'application/json',
+			'Authorization': `Bearer ${localStorage.getItem('token')}`,
+		  },
+		  body: JSON.stringify({
+			...loanData,
+			loan_number: loanNumber,
+			auto_approve: true,
+		  }),
+		});
+
+		if (!response.ok) {
+		  const error = await response.json();
+		  throw new Error(error.error || 'Failed to create loan request');
+		}
+
+		return await response.json();
+	  } catch (error) {
+		console.error('Failed to create staff loan request:', error);
+		throw error;
+	  }
+	};
 
   const MaintenanceRecords = () => {
     const [showAddForm, setShowAddForm] = useState(false);
