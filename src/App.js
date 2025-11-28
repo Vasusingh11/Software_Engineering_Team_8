@@ -439,6 +439,33 @@ const InventoryManager = () => {
     }
   }, []);
 
+  // User management
+  const addUser = async (userData) => {
+    try {
+      setLoading(true);
+      await ApiService.register(userData);
+      await loadUsers();
+    } catch (error) {
+      console.error('Failed to add user:', error);
+      setError('Failed to add user: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteUser = async (userId) => {
+    try {
+      setLoading(true);
+      await ApiService.deleteUser(userId);
+      await loadUsers();
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      setError('Failed to delete user: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
     // Modal functionality with better loading states
   const showStatsModal = async (type) => {
     // Show loading immediately for async operations
@@ -1506,6 +1533,7 @@ const InventoryManager = () => {
       setLoading(false);
     }
   };
+  
   //login
   const login = async (username, password) => {
       try {
@@ -4564,9 +4592,446 @@ const InventoryManager = () => {
       </div>
     );
   };
+  
+  // User Management Component
   const UserManagement = () => {
-    return (<div>Return Confirmation Modal</div>);
-  }
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [userSearch, setUserSearch] = useState('');
+    const [debouncedUserSearch, setDebouncedUserSearch] = useState('');
+    const [editingUser, setEditingUser] = useState(null);
+    const [editFormData, setEditFormData] = useState(null);
+
+    // Debounce user search
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedUserSearch(userSearch);
+      }, 300);
+      return () => clearTimeout(handler);
+    }, [userSearch]);
+
+    // Filter users by search
+    const filteredUsers = users.filter(user => {
+      const searchText = debouncedUserSearch.trim().toLowerCase();
+      if (!searchText) return true;
+      const fields = [
+        user.username,
+        user.name,
+        user.email,
+        user.panther_id,
+        user.user_type,
+        user.role
+      ];
+      return fields.some(field => field && field.toString().toLowerCase().includes(searchText));
+    });
+
+    // Edit user handlers
+    const handleEditUser = (user) => {
+      setEditingUser(user);
+      setEditFormData({ ...user });
+    };
+    const handleEditChange = (e) => {
+      const { name, value, type, checked } = e.target;
+      setEditFormData(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      }));
+    };
+    const handleEditSave = async () => {
+      try {
+        setLoading(true);
+        // Prepare update payload
+        const updateData = {
+          name: editFormData.name,
+          email: editFormData.email,
+          role: editFormData.role,
+          phone: editFormData.phone,
+          user_type: editFormData.user_type,
+          panther_id: editFormData.panther_id,
+          active: editFormData.active ? 1 : 0
+        };
+        await ApiService.updateUser(editFormData.id, updateData);
+        await loadUsers();
+        setEditingUser(null);
+        setEditFormData(null);
+      } catch (error) {
+        setError('Failed to update user: ' + error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    const handleEditCancel = () => {
+      setEditingUser(null);
+      setEditFormData(null);
+    };
+
+    const UserForm = () => {
+      const [formData, setFormData] = useState({
+        username: '',
+        password: '',
+        name: '',
+        email: '',
+        role: 'borrower',
+        panther_id: '',
+        phone: '',
+        user_type: 'student'
+      });
+
+      const handleSubmit = async () => {
+        try {
+          await addUser(formData);
+          setShowAddForm(false);
+          setFormData({ 
+            username: '', password: '', name: '', email: '', role: 'borrower',
+            panther_id: '', phone: '', user_type: 'student'
+          });
+        } catch (error) {
+          // Error is already handled in addUser
+        }
+      };
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold mb-4">Add New GSU User</h3>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1 font-body">Username</label>
+                <input
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({...formData, username: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 font-body">Password</label>
+                <input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Email</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Panther ID</label>
+                <input
+                  type="text"
+                  value={formData.panther_id}
+                  onChange={(e) => setFormData({...formData, panther_id: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Role</label>
+                <select
+                  value={formData.role}
+                  onChange={(e) => setFormData({...formData, role: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="borrower">Borrower</option>
+                  <option value="staff">Staff</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">User Type</label>
+                <select
+                  value={formData.user_type}
+                  onChange={(e) => setFormData({...formData, user_type: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="student">Student</option>
+                  <option value="GSU Team">GSU Team</option>
+                  <option value="staff">Staff</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+              >
+                {loading ? 'Adding...' : 'Add User'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddForm(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const handleDeleteUser = async (userId, userName) => {
+      if (window.confirm(`Are you sure you want to deactivate user "${userName}"? This will prevent them from logging in but preserve all historical data.`)) {
+        await deleteUser(userId);
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold font-headlines tracking-tight">USER MANAGEMENT</h2>
+                      <button
+              onClick={() => setShowAddForm(true)}
+              disabled={loading}
+                              className="flex items-center px-4 py-2 bg-gsu-blue text-white rounded-md hover:bg-opacity-90 disabled:opacity-50 font-primary font-semibold"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add User
+            </button>
+        </div>
+
+        {/* User Search Bar */}
+        <div className="mb-4 flex items-center max-w-md">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={userSearch}
+              onChange={e => setUserSearch(e.target.value)}
+              placeholder="Search users..."
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="absolute left-3 top-2.5 text-gray-400">
+              <Search className="h-5 w-5" />
+            </span>
+            {userSearch && (
+              <button
+                type="button"
+                onClick={() => setUserSearch('')}
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                aria-label="Clear search"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {showAddForm && <UserForm />}
+
+        {/* Edit User Modal */}
+        {editingUser && editFormData && (
+          <Modal isOpen={true} onClose={handleEditCancel} title={`Edit User: ${editingUser.username}`}>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={editFormData.name}
+                    onChange={handleEditChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={editFormData.email}
+                    onChange={handleEditChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Panther ID</label>
+                  <input
+                    type="text"
+                    name="panther_id"
+                    value={editFormData.panther_id || ''}
+                    onChange={handleEditChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={editFormData.phone || ''}
+                    onChange={handleEditChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Role</label>
+                  <select
+                    name="role"
+                    value={editFormData.role}
+                    onChange={handleEditChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="borrower">Borrower</option>
+                    <option value="staff">Staff</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">User Type</label>
+                  <select
+                    name="user_type"
+                    value={editFormData.user_type}
+                    onChange={handleEditChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="student">Student</option>
+                    <option value="GSU Team">GSU Team</option>
+                    <option value="staff">Staff</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div className="flex items-center space-x-2 mt-2">
+                  <input
+                    type="checkbox"
+                    name="active"
+                    checked={!!editFormData.active}
+                    onChange={handleEditChange}
+                    id="activeCheckbox"
+                  />
+                  <label htmlFor="activeCheckbox" className="text-sm font-medium">Active</label>
+                </div>
+              </div>
+              <div className="flex space-x-2 pt-4">
+                <button
+                  onClick={handleEditSave}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {loading ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEditCancel}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Panther ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Active Loans</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredUsers.map(user => {
+                  const userActiveLoans = loans.filter(loan => loan.borrower_id === user.id && loan.status === 'active').length;
+                  return (
+                    <tr key={user.id}>
+                      <td className="px-6 py-4 whitespace-nowrap font-medium">{user.username}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{user.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{user.email}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{user.panther_id || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          user.role === 'admin' ? 'bg-red-100 text-red-800' :
+                          user.role === 'staff' ? 'bg-blue-100 text-blue-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          user.user_type === 'student' ? 'bg-purple-100 text-purple-800' :
+                          user.user_type === 'GSU Team' ? 'bg-orange-100 text-orange-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {user.user_type || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {user.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">{userActiveLoans}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => handleEditUser(user)}
+                          disabled={loading}
+                          className="text-blue-600 hover:text-blue-900 mr-3 disabled:opacity-50"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        {user.active && user.id !== currentUser.id && (
+                          <button
+                            onClick={() => handleDeleteUser(user.id, user.name)}
+                            disabled={loading}
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
   // Dashboard Component
   const Dashboard = () => {
     const {
