@@ -811,6 +811,7 @@ const InventoryManager = () => {
       setLoading(false);
     }
   };
+  
   const getItemTypes = () => {
     const types = [...new Set(items.map(item => item.type))];
     return types.sort();
@@ -967,8 +968,6 @@ const InventoryManager = () => {
 	setSelectedLoan(loan);
 	setShowLoanDetailsModal(true);
   };
-  
-  
 
     // Loan Details Modal
   const LoanDetailsModal = ({ isOpen, onClose, loan }) => {
@@ -2721,91 +2720,6 @@ const InventoryManager = () => {
           // Error is already handled in createLoanRequest
         }
       };
-	  
-	    // Item management
-  const addItem = async (newItem) => {
-    try {
-      setLoading(true);
-      const itemData = {
-        asset_id: newItem.assetId,
-        rcb_sticker_number: newItem.rcbStickerNumber,
-        type: newItem.type,
-        category_id: newItem.categoryId,
-        brand: newItem.brand,
-        model: newItem.model,
-        serial_number: newItem.serialNumber,
-        purchase_date: newItem.purchaseDate,
-        purchase_price: newItem.purchasePrice,
-        warranty_expiry: newItem.warrantyExpiry,
-        condition: newItem.condition,
-        location_id: newItem.locationId,
-        notes: newItem.notes,
-        specifications: newItem.specifications,
-        parts_used: newItem.partsUsed,
-        can_leave_building: newItem.canLeaveBuilding !== undefined ? newItem.canLeaveBuilding : 1
-      };
-      
-      await ApiService.createItem(itemData);
-      await loadItems();
-      await loadAvailableItems();
-      await loadDashboardStats();
-    } catch (error) {
-      console.error('Failed to add item:', error);
-      setError('Failed to add item: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateItem = async (id, updatedItem) => {
-    try {
-      setLoading(true);
-      const itemData = {
-        asset_id: updatedItem.assetId || updatedItem.asset_id,
-        rcb_sticker_number: updatedItem.rcbStickerNumber || updatedItem.rcb_sticker_number,
-        type: updatedItem.type,
-        category_id: updatedItem.categoryId || updatedItem.category_id,
-        brand: updatedItem.brand,
-        model: updatedItem.model,
-        serial_number: updatedItem.serialNumber || updatedItem.serial_number,
-        purchase_date: updatedItem.purchaseDate || updatedItem.purchase_date,
-        purchase_price: updatedItem.purchasePrice || updatedItem.purchase_price,
-        warranty_expiry: updatedItem.warrantyExpiry || updatedItem.warranty_expiry,
-        status: updatedItem.status,
-        condition: updatedItem.condition,
-        location_id: updatedItem.locationId || updatedItem.location_id,
-        notes: updatedItem.notes,
-        specifications: updatedItem.specifications,
-        parts_used: updatedItem.partsUsed || updatedItem.parts_used,
-        can_leave_building: updatedItem.canLeaveBuilding !== undefined ? updatedItem.canLeaveBuilding : updatedItem.can_leave_building
-      };
-      
-      await ApiService.updateItem(id, itemData);
-      await loadItems();
-      await loadAvailableItems();
-      await loadDashboardStats();
-    } catch (error) {
-      console.error('Failed to update item:', error);
-      setError('Failed to update item: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteItem = async (id) => {
-    try {
-      setLoading(true);
-      await ApiService.deleteItem(id);
-      await loadItems();
-      await loadAvailableItems();
-      await loadDashboardStats();
-    } catch (error) {
-      console.error('Failed to delete item:', error);
-      setError('Failed to delete item: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const markItemForMaintenance = async (itemId) => {
     try {
@@ -3258,7 +3172,7 @@ const InventoryManager = () => {
       </div>
     );
   };
-
+  
   	const generateLoanNumber = () => {
 	  const currentYear = new Date().getFullYear();
 	  const existingLoans = loans.filter(loan => 
@@ -4071,42 +3985,381 @@ const InventoryManager = () => {
 		}
 	  };
 
-	  return showEmailNotification && lastSubmittedApplication ? (
-		<div className="min-h-screen bg-gradient-to-br from-gsu-light-blue to-gray-100 flex items-center justify-center">
-		  <div className="bg-white rounded-lg shadow-xl p-8 max-w-2xl w-full text-center">
-			<div className="text-6xl mb-4">✅</div>
-			<h2 className="text-2xl font-bold mb-2 font-secondary">Application Approved!</h2>
-			<p className="text-gray-700 mb-4 font-primary">
-			  The loaner application for <strong>{lastSubmittedApplication.name}</strong> has been created and <strong className="text-green-600">automatically approved</strong>.
-			</p>
-			<button
-			  onClick={sendEmailNotification}
-			  disabled={loading}
-			  className="flex items-center px-6 py-3 bg-gsu-blue text-white rounded-md hover:bg-opacity-90 disabled:opacity-50 font-primary font-medium mb-2"
-			>
-			  📧 {loading ? 'Sending...' : 'Send Email Notification'}
-			</button>
-			<button
-			  onClick={() => { setShowEmailNotification(false); setLastSubmittedApplication(null); }}
-			  className="px-6 py-3 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 font-primary font-medium"
-			>
-			  Close
-			</button>
-		  </div>
-		</div>
-	  ) : showForm ? (
-		<form onSubmit={handleSubmit}>
-		  {showTerms && <TermsAndConditions />}
-		  {/* User info, item selection, loan details, signature, terms, submit buttons */}
-		  {/* ...You can paste your previous JSX for sections here directly without changes */}
-		</form>
-	  ) : (
-		<button onClick={() => setShowForm(true)} className="px-6 py-3 bg-gsu-blue text-white rounded-md">
-		  New Equipment Loan Application
-		</button>
-	  );
-	};
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gsu-light-blue to-gray-100">
+        {showTerms && <TermsAndConditions />}
+        
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
+            <div className="bg-gradient-to-r from-gsu-blue to-gsu-cool-blue px-8 py-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-2xl font-bold text-white font-secondary">
+                    New Equipment Loan Application
+                  </h1>
+                  <p className="text-gsu-light-blue font-primary">
+                    Complete all sections below to process the loan request
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-2 bg-white bg-opacity-20 text-white rounded-md hover:bg-opacity-30 font-primary font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
 
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* 1. User Information Section */}
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-gsu-blue to-gsu-cool-blue px-6 py-4">
+                <h2 className="text-xl font-semibold text-white font-secondary flex items-center">
+                  <Search className="h-5 w-5 mr-2" />
+                  User Information
+                </h2>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {/* User Search Bar */}
+                <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Search Existing User</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={userSearchTerm}
+                      onChange={(e) => {
+                        setUserSearchTerm(e.target.value);
+                        searchUsers(e.target.value);
+                      }}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gsu-blue focus:border-gsu-blue font-primary"
+                      placeholder="Search by name, email, or Panther ID..."
+                    />
+                  </div>
+                  
+                  {/* Search Results Dropdown */}
+                  {showSearchResults && searchResults.length > 0 && (
+                    <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {searchResults.map(user => (
+                        <div
+                          key={user.id}
+                          onClick={() => selectUser(user)}
+                          className="px-4 py-3 hover:bg-gsu-light-blue hover:bg-opacity-20 cursor-pointer border-b border-gray-100 last:border-b-0"
+                        >
+                          <div className="font-medium text-gray-900 font-primary">{user.name}</div>
+                          <div className="text-sm text-gray-600 font-primary">{user.email}</div>
+                          {user.panther_id && (
+                            <div className="text-xs text-gray-500 font-primary">Panther ID: {user.panther_id}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {showSearchResults && searchResults.length === 0 && userSearchTerm.length >= 2 && (
+                    <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-md shadow-lg">
+                      <div className="px-4 py-3 text-gray-500 font-primary">
+                        No users found. Fill in the details below to create a new user.
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Full Name *</label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gsu-blue focus:border-gsu-blue font-primary"
+                      required
+                      placeholder="Enter full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Email Address *</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gsu-blue focus:border-gsu-blue font-primary"
+                      required
+                      placeholder="@student.gsu.edu or @gsu.edu"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Panther ID *</label>
+                    <input
+                      type="text"
+                      value={formData.panther_id}
+                      onChange={(e) => setFormData({...formData, panther_id: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gsu-blue focus:border-gsu-blue font-primary"
+                      required
+                      placeholder="002XXXXXX"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Phone Number *</label>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gsu-blue focus:border-gsu-blue font-primary"
+                      required
+                      placeholder="(xxx) xxx-xxxx"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">User Type *</label>
+                    <select
+                      value={formData.user_type}
+                      onChange={(e) => setFormData({...formData, user_type: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gsu-blue focus:border-gsu-blue font-primary"
+                      required
+                    >
+                      <option value="student">Student</option>
+                      <option value="GSU Team">GSU Team Member</option>
+                      <option value="faculty">Faculty</option>
+                      <option value="staff">Staff</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Equipment Selection Section */}
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4">
+                <h2 className="text-xl font-semibold text-white font-secondary flex items-center">
+                  <Laptop className="h-5 w-5 mr-2" />
+                  Equipment Selection
+                </h2>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Search Available Equipment</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={itemSearchTerm}
+                      onChange={(e) => setItemSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 font-primary"
+                      placeholder="Search by Asset ID, RCB Sticker, Type, Brand, or Model..."
+                    />
+                  </div>
+                </div>
+
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="max-h-64 overflow-y-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Select</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Asset ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">RCB Sticker</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Type</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Brand/Model</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-primary">Location</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {filteredAvailableItems.map(item => (
+                          <tr key={item.id} className="hover:bg-green-50">
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={formData.item_ids.includes(item.id)}
+                                onChange={(e) => handleItemSelection(item.id, e.target.checked)}
+                                className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                              />
+                            </td>
+                            <td className="px-4 py-3 font-medium font-primary">{item.asset_id}</td>
+                            <td className="px-4 py-3 text-gsu-blue font-primary">{item.rcb_sticker_number || '-'}</td>
+                            <td className="px-4 py-3 font-primary">{item.type}</td>
+                            <td className="px-4 py-3 font-primary">{item.brand} {item.model}</td>
+                            <td className="px-4 py-3 font-primary">{item.location_name}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {filteredAvailableItems.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 font-primary">
+                      No available equipment matches your search
+                    </div>
+                  )}
+                </div>
+                
+                <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                  <p className="text-sm text-green-700 font-primary">
+                    <strong>Selected items: {formData.item_ids.length}</strong>
+                    {formData.item_ids.length > 0 && ' - Ready for checkout once approved'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Loan Details Section */}
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4">
+                <h2 className="text-xl font-semibold text-white font-secondary flex items-center">
+                  <Clock className="h-5 w-5 mr-2" />
+                  Loan Details
+                </h2>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Loan Date *</label>
+                    <input
+                      type="date"
+                      value={formData.loan_date}
+                      onChange={(e) => setFormData({...formData, loan_date: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-primary"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Expected Return Date *</label>
+                    <input
+                      type="date"
+                      value={formData.expected_return}
+                      onChange={(e) => setFormData({...formData, expected_return: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-primary"
+                      required
+                      min={formData.loan_date}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Reason for Loan Request *</label>
+                  <textarea
+                    value={formData.reason}
+                    onChange={(e) => setFormData({...formData, reason: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-primary"
+                    rows="4"
+                    required
+                    placeholder="Please describe the purpose for borrowing this equipment..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Signature Section */}
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-orange-600 to-orange-700 px-6 py-4">
+                <h2 className="text-xl font-semibold text-white font-secondary flex items-center">
+                  <Edit className="h-5 w-5 mr-2" />
+                  Digital Signature
+                </h2>
+              </div>
+              
+              <div className="p-6">
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 font-primary">Borrower Signature *</label>
+                    <input
+                      type="text"
+                      value={formData.borrower_signature}
+                      onChange={(e) => setFormData({...formData, borrower_signature: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-primary"
+                      required
+                      placeholder="Type your full name as digital signature"
+                    />
+                  </div>
+                  <p className="text-sm text-orange-700 font-primary">
+                    By typing your name above, you are providing a legally binding digital signature and acknowledge that you agree to all terms and conditions.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 5. Terms and Conditions Section */}
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="bg-gradient-to-r from-gsu-red to-red-600 px-6 py-4">
+                <h2 className="text-xl font-semibold text-white font-secondary flex items-center">
+                  <FileText className="h-5 w-5 mr-2" />
+                  Terms and Conditions
+                </h2>
+              </div>
+              
+              <div className="p-6">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                  <div className="flex items-start space-x-3 mb-4">
+                    <input
+                      type="checkbox"
+                      id="termsAccepted"
+                      checked={termsAccepted}
+                      onChange={(e) => {
+                        // Prevent direct checking - must go through modal
+                        e.preventDefault();
+                        setShowTerms(true);
+                      }}
+                      className="h-5 w-5 text-gsu-blue focus:ring-gsu-blue border-gray-300 rounded cursor-pointer mt-0.5"
+                      required
+                    />
+                    <label htmlFor="termsAccepted" className="text-sm font-medium text-yellow-800 cursor-pointer font-primary">
+                      I have read and accept the terms and conditions for equipment loan from Georgia State University
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowTerms(true)}
+                    className="text-gsu-blue hover:text-gsu-cool-blue text-sm underline font-primary font-medium"
+                  >
+                    📖 Read Full Terms and Conditions
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 6. Submit Section */}
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="p-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold text-gray-900 font-secondary">Ready to Submit?</h3>
+                    <p className="text-sm text-gray-600 font-primary">
+                      This will create and automatically approve individual loan requests for each selected item.
+                      Equipment will be ready for immediate checkout.
+                      {!users.find(user => user.email.toLowerCase() === formData.email.toLowerCase()) && formData.email && (
+                        <span className="text-gsu-blue font-medium"> A new user account will be created automatically.</span>
+                      )}
+                    </p>
+                  </div>
+                  
+                  <div className="flex space-x-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowForm(false)}
+                      className="px-6 py-3 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 font-primary font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading || !termsAccepted || formData.item_ids.length === 0 || !formData.borrower_signature}
+                      className="px-6 py-3 bg-gsu-blue text-white rounded-md hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-primary font-semibold shadow-md"
+                    >
+                      {loading ? 'Creating Application...' : `Create Loan Application (${formData.item_ids.length} items)`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+  
   const Reports = () => {
     const generateReport = (type) => {
       let data = [];
