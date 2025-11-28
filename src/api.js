@@ -66,6 +66,14 @@ class ApiService {
     
     return response;
   }
+  
+	async register(username, password, role) {
+	return this.request('/auth/register', {
+		method: 'POST',
+		body: JSON.stringify({ username, password, role }),
+	  });
+	}
+
   async getItems(params = {}) {
     const queryString = new URLSearchParams();
     
