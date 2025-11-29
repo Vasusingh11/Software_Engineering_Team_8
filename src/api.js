@@ -67,12 +67,19 @@ class ApiService {
     return response;
   }
   
-	async register(username, password, role) {
+  async register(username, password, role) {
 	return this.request('/auth/register', {
 		method: 'POST',
 		body: JSON.stringify({ username, password, role }),
 	  });
 	}
+	
+  async createUserForLoaner(userData) {
+    return this.request('/users/create-for-loaner', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
 
   async getItems(params = {}) {
     const queryString = new URLSearchParams();
