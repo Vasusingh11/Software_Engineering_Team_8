@@ -439,19 +439,36 @@ const InventoryManager = () => {
     }
   }, []);
 
-  // User management
-  const addUser = async (userData) => {
-    try {
-      setLoading(true);
-      await ApiService.register(userData);
-      await loadUsers();
-    } catch (error) {
-      console.error('Failed to add user:', error);
-      setError('Failed to add user: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+	// User management
+	const addUser = async (userData) => {
+	  try {
+		setLoading(true);
+		
+		// Prepare the payload for the loaner endpoint
+		const userPayload = {
+		  username: userData.email?.split('@')[0] || userData.username,
+		  password: 'TempGSU2024!', // Temporary password
+		  name: userData.name,
+		  email: userData.email,
+		  role: userData.role || 'borrower',
+		  panther_id: userData.panther_id,
+		  phone: userData.phone,
+		  user_type: userData.user_type
+		};
+		
+		console.log("📤 Creating user with payload:", userPayload);
+		
+		// Call the correct endpoint
+		await ApiService.createUserForLoaner(userPayload);
+		await loadUsers();
+		
+	  } catch (error) {
+		console.error('Failed to add user:', error);
+		setError('Failed to add user: ' + error.message);
+	  } finally {
+		setLoading(false);
+	  }
+	};
 
   const deleteUser = async (userId) => {
     try {
@@ -3225,6 +3242,8 @@ const InventoryManager = () => {
 		  created_by_staff: true,
 		  requires_password_reset: true,
 		};
+		
+		console.log("📤 Sending newUserData:", newUserData);
 
 		const response = await fetch(
 		  'http://localhost:5000/api/users/create-for-loaner',
@@ -3946,12 +3965,23 @@ const InventoryManager = () => {
 			user.email.toLowerCase() === formData.email.toLowerCase() || user.panther_id === formData.panther_id
 		  );
 
-		  if (!existingUser) {
-			const userResult = await createUserForLoanerApp(formData);
-			createdUserId = userResult.id;
-		  } else {
-			createdUserId = existingUser.id;
-		  }
+		if (!existingUser) {
+		  const userPayload = {
+			username: formData.email,
+			password: formData.password,
+			name: formData.name,
+			email: formData.email,
+			panther_id: formData.panther_id,
+			phone: formData.phone,
+			user_type: formData.user_type,
+			role: "borrower"
+		  };
+		  console.log("📥 Loaner userPayload:", userPayload);
+		  const userResult = await createUserForLoanerApp(userPayload);
+		  createdUserId = userResult.id;
+		} else {
+		  createdUserId = existingUser.id;
+		}
 
 		  const successfulLoans = [];
 		  const failedLoans = [];
