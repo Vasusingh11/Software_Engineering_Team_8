@@ -158,13 +158,13 @@ app.post('/api/auth/login', async (req, res) => {
 // Create user for loaner application (staff/admin only) - ENHANCED WITH DEBUGGING
 app.post('/api/users/create-for-loaner', authenticateToken, requireRole(['admin', 'staff']), async (req, res) => {
   try {
-    const { username, password, name, email, role } = req.body;
+    const { username, password, name, email, role, panther_id, phone, user_type } = req.body;
 
     if (!username || !password || !name || !email) {
       return res.status(400).json({ error: 'Username, password, name, and email are required' });
     }
 
-    console.log(`🔧 Creating user: ${username} (${name}) - ${email} as ${role || 'borrower'}`);
+    console.log(`📧 Creating user: ${username} (${name}) - ${email} as ${role || 'borrower'}`);
 
     // Check if user already exists
     const existingUser = await getQuery(
@@ -187,12 +187,14 @@ app.post('/api/users/create-for-loaner', authenticateToken, requireRole(['admin'
 
     const hashedPassword = bcrypt.hashSync(password, 10);
 
+    // Check if the extra columns exist in your database
+    // If they don't exist, we'll only insert the basic fields
     const result = await runQuery(`
       INSERT INTO users (username, password, name, email, role, active) 
       VALUES (?, ?, ?, ?, ?, ?)
     `, [username, hashedPassword, name, email, role || 'borrower', 1]);
 
-    // Verify the user was created by fetching it back
+    // Verify the user was created
     const createdUser = await getQuery(
       'SELECT id, username, name, email, role, active, created_at FROM users WHERE id = ?',
       [result.id]
@@ -215,7 +217,7 @@ app.post('/api/users/create-for-loaner', authenticateToken, requireRole(['admin'
     if (error.message.includes('UNIQUE constraint failed')) {
       res.status(400).json({ error: 'Username or email already exists' });
     } else {
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: 'Internal server error', details: error.message });
     }
   }
 });
