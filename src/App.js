@@ -4042,6 +4042,77 @@ const InventoryManager = () => {
 		  setLoading(false);
 		}
 	  };
+	  
+	if (!showForm) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-gsu-light-blue to-gray-100">
+          <div className="max-w-6xl mx-auto px-4 py-8">
+            {/* Header */}
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
+              <div className="bg-gradient-to-r from-gsu-blue to-gsu-cool-blue px-8 py-8">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h1 className="text-3xl font-bold text-white font-secondary mb-2">
+                      GSU Equipment Loaner Program
+                    </h1>
+                    <p className="text-gsu-light-blue font-primary">
+                      Request equipment for academic and professional use
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowForm(true)}
+                    disabled={loading}
+                    className="flex items-center px-6 py-3 bg-white text-gsu-blue rounded-md hover:bg-gray-50 disabled:opacity-50 font-primary font-semibold shadow-md"
+                  >
+                    <UserPlus className="h-5 w-5 mr-2" />
+                    New Application
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Instructions */}
+            <div className="bg-white rounded-lg shadow-lg p-8">
+              <h2 className="text-2xl font-semibold mb-6 text-gsu-blue font-secondary">Getting Started</h2>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-1 gap-8 mb-8">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
+                  <h3 className="text-lg font-semibold text-blue-800 mb-3 font-secondary">📋 Application Process</h3>
+                  <ol className="space-y-2 text-sm text-blue-700 font-primary">
+                    <li>1. Search for existing users or add new</li>
+                    <li>2. Select required equipment</li>
+                    <li>3. Set loan dates and provide purpose</li>
+                    <li>4. Accept terms and add digital signature</li>
+                  </ol>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 font-secondary">Email Guidelines</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm font-primary">
+                  <div>
+                    <h4 className="font-semibold text-gsu-blue mb-2">Students</h4>
+                    <div className="space-y-1 text-gray-700">
+                      <div>Email: @student.gsu.edu</div>
+                      <div>Panther ID: 002XXXXXX format</div>
+                      <div>Valid GSU student status required</div>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gsu-blue mb-2">Faculty & Staff</h4>
+                    <div className="space-y-1 text-gray-700">
+                      <div>Email: @gsu.edu</div>
+                      <div>Any valid GSU Panther ID</div>
+                      <div>Current employment verification</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-gsu-light-blue to-gray-100">
@@ -5231,12 +5302,12 @@ const InventoryManager = () => {
       { id: 'dashboard', label: 'Dashboard', icon: Settings },
       { id: 'inventory', label: 'Inventory', icon: Search },
       { id: 'loans', label: 'Loans', icon: Clock },
-      { id: 'reports', label: 'Reports', icon: FileText },
     ];
 
     if (currentUser.role === 'admin' || currentUser.role === 'staff') {
       tabs.splice(3, 0, { id: 'loaner-applications', label: 'Loaner Apps', icon: Laptop });
       tabs.splice(4, 0, { id: 'maintenance', label: 'Maintenance', icon: Wrench });
+      tabs.splice(5, 0, { id: 'reports', label: 'Reports', icon: FileText });
     }
 
     if (currentUser.role === 'admin') {
