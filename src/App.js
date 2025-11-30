@@ -1677,7 +1677,7 @@ const InventoryManager = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-gsu-cool-grey font-medium">Student:</span>
-                <span className="text-gsu-blue font-semibold">john.doe / user123</span>
+                <span className="text-gsu-blue font-semibold">user1 / user123</span>
               </div>
             </div>
           </div>
