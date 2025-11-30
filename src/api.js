@@ -177,8 +177,20 @@ class ApiService {
       body: JSON.stringify(returnData),
     });
   }
-
   
+  async deleteUser(id) {
+	return this.request(`/users/${id}`, {
+	  method: "DELETE",
+	});
+  }
+
+  async updateUser(id, userData) {
+    return this.request(`/users/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(userData),
+    });
+  }
+
 }
 
 
