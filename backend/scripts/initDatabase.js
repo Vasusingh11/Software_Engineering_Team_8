@@ -98,8 +98,8 @@ db.serialize(() => {
   const demoUsers = [
     { username: 'admin', password: 'admin123', name: 'System Administrator', email: 'admin@company.com', role: 'admin' },
     { username: 'staff', password: 'staff123', name: 'IT Staff', email: 'staff@company.com', role: 'staff' },
-    { username: 'user1', password: 'user123', name: 'John Doe', email: 'john@company.com', role: 'borrower' },
-    { username: 'user2', password: 'user123', name: 'Jane Smith', email: 'jane@company.com', role: 'borrower' }
+    { username: 'john.doe', password: 'user123', name: 'John Doe', email: 'john@company.com', role: 'borrower' },
+    { username: 'jane.smith', password: 'user123', name: 'Jane Smith', email: 'jane@company.com', role: 'borrower' }
   ];
 
   demoUsers.forEach((user, index) => {
@@ -173,8 +173,8 @@ db.serialize(() => {
   console.log('Demo users created:');
   console.log('- admin / admin123 (Administrator)');
   console.log('- staff / staff123 (Staff)');
-  console.log('- user1 / user123 (Borrower)');
-  console.log('- user2 / user123 (Borrower)');
+  console.log('- john.doe / user123 (Borrower)');
+  console.log('- jane.smith / user123 (Borrower)');
 });
 
 db.close();
