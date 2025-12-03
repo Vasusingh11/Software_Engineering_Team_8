@@ -47,7 +47,7 @@ A comprehensive web application for managing equipment loans at GSU's J. Mack Ro
    npm run dev
    ```
 
-The API will be available at `http://localhost:5000`
+The API will be available at `http://localhost:5001`
 
 ### Frontend Setup
 
@@ -313,7 +313,7 @@ npm run maintenance
 ```bash
 # Required for production
 JWT_SECRET=your-super-secure-32-character-secret-key
-PORT=5000
+PORT=5001
 NODE_ENV=production
 
 # Database

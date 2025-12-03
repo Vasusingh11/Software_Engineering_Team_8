@@ -866,7 +866,7 @@ const InventoryManager = () => {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await fetch('http://localhost:5000/api/items/import', {
+      const response = await fetch('http://localhost:5001/api/items/import', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -2853,7 +2853,7 @@ const InventoryManager = () => {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await fetch('http://localhost:5000/api/items/import', {
+      const response = await fetch('http://localhost:5001/api/items/import', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -3246,7 +3246,7 @@ const InventoryManager = () => {
 		console.log("📤 Sending newUserData:", newUserData);
 
 		const response = await fetch(
-		  'http://localhost:5000/api/users/create-for-loaner',
+		  'http://localhost:5001/api/users/create-for-loaner',
 		  {
 			method: 'POST',
 			headers: {
@@ -3280,7 +3280,7 @@ const InventoryManager = () => {
 	const createStaffLoanRequest = async (loanData) => {
 	  try {
 		const loanNumber = generateLoanNumber();
-		const response = await fetch('http://localhost:5000/api/loans/staff-create', {
+		const response = await fetch('http://localhost:5001/api/loans/staff-create', {
 		  method: 'POST',
 		  headers: {
 			'Content-Type': 'application/json',

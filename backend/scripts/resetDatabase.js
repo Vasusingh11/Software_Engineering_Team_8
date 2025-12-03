@@ -543,7 +543,7 @@ db.serialize(() => {
   console.log(`\n💾 Database saved to: ${dbPath}`);
   console.log('\nNext steps:');
   console.log('1. Run: npm run dev (to start the API server)');
-  console.log('2. Test API at: http://localhost:5000/api/health');
+  console.log('2. Test API at: http://localhost:5001/api/health');
   console.log('3. Access application at: http://localhost:3000');
 });
 
